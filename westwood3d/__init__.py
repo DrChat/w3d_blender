@@ -2,7 +2,7 @@ bl_info = {
     "name": "Westwood3D Tools",
     "author": "Huw Pascoe",
     "version": (1, 0),
-    "blender": (2, 6, 3),
+    "blender": (2, 6, 9),
     "location": "Import, Export, Material Panel",
     "description": "Enables content authoring for C&C Renegade",
     "warning": "This is a preview and should not be used for projects",
@@ -11,6 +11,7 @@ bl_info = {
     "category": "Import-Export"
 }
 
+# Module reload
 if "bpy" in locals():
     import imp
     imp.reload(w3d_material)
@@ -29,9 +30,10 @@ def register():
     bpy.types.Material.westwood3d = bpy.props.PointerProperty(type=w3d_material.Westwood3DMaterial)
     bpy.types.INFO_MT_file_import.append(w3d_import.menu_func_import)
     bpy.types.INFO_MT_file_export.append(w3d_export.menu_func_export)
+
 def unregister():
-    bpy.types.INFO_MT_file_export.remove(w3d_export.menu_func_export)
     bpy.types.INFO_MT_file_import.remove(w3d_import.menu_func_import)
+    bpy.types.INFO_MT_file_export.remove(w3d_export.menu_func_export)
     del bpy.types.Material.westwood3d
     bpy.utils.unregister_module(__name__)
     

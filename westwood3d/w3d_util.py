@@ -1,4 +1,5 @@
 import copy
+import struct
 
 def collect_render_objects(root):
     robj = {}
@@ -74,6 +75,85 @@ def make_pivots(root, robj):
                 pivots[h.BoneIndex]['prx'].append(h.Name)
     
     return pivotdict
+
+def make_anims(root, pivots):
+    animdict = {}
+
+    for animroot in root.find("animation"):
+        if animroot == None:
+            continue
+
+        head = animroot.get("animation_header")
+        animdict[head.Name] = {
+            'hname': head.HierarchyName, 'name': head.Name, 'numframes': head.NumFrames,
+            'framerate': head.FrameRate, 'channels': [], 'bitchannels': [],
+        }
+
+        bitchannels = animroot.find("bit_channel")
+
+        for bitchan in bitchannels:
+            pass
+
+        channels = animroot.find("animation_channel")
+
+        for chan in channels:
+            chanout = {
+                'firstframe': chan.FirstFrame, 'lastframe': chan.LastFrame, 'data': []
+            }
+
+            # What the channel controls
+            type = ''
+            if chan.Flags == 0:
+                type = 'X' # X/Y/Z translation
+            elif chan.Flags == 1:
+                type = 'Y'
+            elif chan.Flags == 2:
+                type = 'Z'
+            elif chan.Flags == 3:
+                type = 'XR' # X/Y/Z rotation
+            elif chan.Flags == 4:
+                type = 'YR'
+            elif chan.Flags == 5:
+                type = 'ZR'
+            elif chan.Flags == 6:
+                type = 'Q' # Quaternion
+
+            chanout['type'] = type
+            chanout['vectorlen'] = chan.VectorLen
+
+            # Animation data
+            size = ((chan.LastFrame - chan.FirstFrame + 1) * chan.VectorLen) * 4
+            offset = 0
+            while offset < size:
+                data = struct.unpack_from(str(chan.VectorLen) + 'f', chan.Data, offset);
+
+                veclist = []
+                for i in range(0, chan.VectorLen):
+                    veclist.append(data[i])
+
+                chanout['data'].append(veclist)
+
+                offset += struct.calcsize(str(chan.VectorLen) + 'f')
+
+            # Link the pivot
+            pivotobj = None
+            for pivotn in pivots:
+                if pivotobj != None:
+                    break
+
+                if pivotn == head.HierarchyName:
+                    i = 0
+                    for p in pivots[pivotn]['index']:
+                        if i == chan.Pivot:
+                            pivotobj = p
+                            break
+
+                        i += 1
+
+            chanout['pivot'] = pivotobj
+            animdict[head.Name]['channels'].append(chanout)
+
+    return animdict
     
 def mat_reduce(root, ignore_lightmap):
     materials = []
@@ -192,11 +272,8 @@ def make_hash(o):
         o = o2    
 
     if isinstance(o, set) or isinstance(o, tuple) or isinstance(o, list):
-
-        return tuple([make_hash(e) for e in o])        
-
+        return tuple([make_hash(e) for e in o])
     elif not isinstance(o, dict):
-
         return hash(o)
 
     new_o = copy.deepcopy(o)

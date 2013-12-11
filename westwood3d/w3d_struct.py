@@ -1,4 +1,5 @@
 import struct
+from math import ceil
 
 def b2s(str):
     return str.split(b'\0')[0].decode('utf-8')
@@ -12,135 +13,135 @@ def ver(major, minor):
 
 w3d_keys = {
     0x00000000: 'MESH',
-    0x00000002: 'VERTICES',
-    0x00000003: 'VERTEX_NORMALS',
-    0x0000000C: 'MESH_USER_TEXT',
-    0x0000000E: 'VERTEX_INFLUENCES',
-    0x0000001F: 'MESH_HEADER3',
-    0x00000020: 'TRIANGLES',
-    0x00000022: 'VERTEX_SHADE_INDICES',
+        0x00000002: 'VERTICES',
+        0x00000003: 'VERTEX_NORMALS',
+        0x0000000C: 'MESH_USER_TEXT',
+        0x0000000E: 'VERTEX_INFLUENCES',
+        0x0000001F: 'MESH_HEADER3',
+        0x00000020: 'TRIANGLES',
+        0x00000022: 'VERTEX_SHADE_INDICES',
 
-    0x00000023: 'PRELIT_UNLIT',
-    0x00000024: 'PRELIT_VERTEX',
-    0x00000025: 'PRELIT_LIGHTMAP_MULTI_PASS',
-    0x00000026: 'PRELIT_LIGHTMAP_MULTI_TEXTURE',
+        0x00000023: 'PRELIT_UNLIT',
+        0x00000024: 'PRELIT_VERTEX',
+        0x00000025: 'PRELIT_LIGHTMAP_MULTI_PASS',
+        0x00000026: 'PRELIT_LIGHTMAP_MULTI_TEXTURE',
 
-    0x00000028: 'MATERIAL_INFO',
+            0x00000028: 'MATERIAL_INFO',
 
-    0x00000029: 'SHADERS',
+            0x00000029: 'SHADERS',
 
-    0x0000002A: 'VERTEX_MATERIALS',
-    0x0000002B: 'VERTEX_MATERIAL',
-    0x0000002C: 'VERTEX_MATERIAL_NAME',
-    0x0000002D: 'VERTEX_MATERIAL_INFO',
-    0x0000002E: 'VERTEX_MAPPER_ARGS0',
-    0x0000002F: 'VERTEX_MAPPER_ARGS1',
+            0x0000002A: 'VERTEX_MATERIALS',
+                0x0000002B: 'VERTEX_MATERIAL',
+                    0x0000002C: 'VERTEX_MATERIAL_NAME',
+                    0x0000002D: 'VERTEX_MATERIAL_INFO',
+                    0x0000002E: 'VERTEX_MAPPER_ARGS0',
+                    0x0000002F: 'VERTEX_MAPPER_ARGS1',
 
-    0x00000030: 'TEXTURES',
-    0x00000031: 'TEXTURE',
-    0x00000032: 'TEXTURE_NAME',
-    0x00000033: 'TEXTURE_INFO',
+            0x00000030: 'TEXTURES',
+                0x00000031: 'TEXTURE',
+                    0x00000032: 'TEXTURE_NAME',
+                    0x00000033: 'TEXTURE_INFO',
+                
+            0x00000038: 'MATERIAL_PASS',
+                0x00000039: 'VERTEX_MATERIAL_IDS',
+                0x0000003A: 'SHADER_IDS',
+                0x0000003B: 'DCG',
+                0x0000003C: 'DIG',
+                0x0000003E: 'SCG',
+
+                0x00000048: 'TEXTURE_STAGE',
+                    0x00000049: 'TEXTURE_IDS',
+                    0x0000004A: 'STAGE_TEXCOORDS',
+                    0x0000004B: 'PER_FACE_TEXCOORD_IDS',
+
+
+        0x00000058: 'DEFORM',
+            0x00000059: 'DEFORM_SET',
+                0x0000005A: 'DEFORM_KEYFRAME',
+                    0x0000005B: 'DEFORM_DATA',
+
+        0x00000080: 'PS2_SHADERS',
         
-    0x00000038: 'MATERIAL_PASS',
-    0x00000039: 'VERTEX_MATERIAL_IDS',
-    0x0000003A: 'SHADER_IDS',
-    0x0000003B: 'DCG',
-    0x0000003C: 'DIG',
-    0x0000003E: 'SCG',
-
-    0x00000048: 'TEXTURE_STAGE',
-    0x00000049: 'TEXTURE_IDS',
-    0x0000004A: 'STAGE_TEXCOORDS',
-    0x0000004B: 'PER_FACE_TEXCOORD_IDS',
-
-
-    0x00000058: 'DEFORM',
-    0x00000059: 'DEFORM_SET',
-    0x0000005A: 'DEFORM_KEYFRAME',
-    0x0000005B: 'DEFORM_DATA',
-
-    0x00000080: 'PS2_SHADERS',
-    
-    0x00000090: 'AABTREE',
-    0x00000091: 'AABTREE_HEADER',
-    0x00000092: 'AABTREE_POLYINDICES',
-    0x00000093: 'AABTREE_NODES',
+        0x00000090: 'AABTREE',
+            0x00000091: 'AABTREE_HEADER',
+            0x00000092: 'AABTREE_POLYINDICES',
+            0x00000093: 'AABTREE_NODES',
 
     0x00000100: 'HIERARCHY',
-    0x00000101: 'HIERARCHY_HEADER',
-    0x00000102: 'PIVOTS',
-    0x00000103: 'PIVOT_FIXUPS',
+        0x00000101: 'HIERARCHY_HEADER',
+        0x00000102: 'PIVOTS',
+        0x00000103: 'PIVOT_FIXUPS',
 
     0x00000200: 'ANIMATION',
-    0x00000201: 'ANIMATION_HEADER',       
-    0x00000202: 'ANIMATION_CHANNEL',
-    0x00000203: 'BIT_CHANNEL',
+        0x00000201: 'ANIMATION_HEADER',       
+        0x00000202: 'ANIMATION_CHANNEL',
+        0x00000203: 'BIT_CHANNEL',
 
     0x00000280: 'COMPRESSED_ANIMATION',
-    0x00000281: 'COMPRESSED_ANIMATION_HEADER',
-    0x00000282: 'COMPRESSED_ANIMATION_CHANNEL',
-    0x00000283: 'COMPRESSED_BIT_CHANNEL',
+        0x00000281: 'COMPRESSED_ANIMATION_HEADER',
+        0x00000282: 'COMPRESSED_ANIMATION_CHANNEL',
+        0x00000283: 'COMPRESSED_BIT_CHANNEL',
 
     0x000002C0: 'MORPH_ANIMATION',
-    0x000002C1: 'MORPHANIM_HEADER',
-    0x000002C2: 'MORPHANIM_CHANNEL',
-    0x000002C3: 'MORPHANIM_POSENAME',
-    0x000002C4: 'MORPHANIM_KEYDATA',
-    0x000002C5: 'MORPHANIM_PIVOTCHANNELDATA',
+        0x000002C1: 'MORPHANIM_HEADER',
+        0x000002C2: 'MORPHANIM_CHANNEL',
+            0x000002C3: 'MORPHANIM_POSENAME',
+            0x000002C4: 'MORPHANIM_KEYDATA',
+        0x000002C5: 'MORPHANIM_PIVOTCHANNELDATA',
 
     0x00000300: 'HMODEL',
-    0x00000301: 'HMODEL_HEADER',
-    0x00000302: 'NODE',
-    0x00000303: 'COLLISION_NODE',
-    0x00000304: 'SKIN_NODE',
-    0x00000305: 'OBSOLETE_W3D_CHUNK_HMODEL_AUX_DATA',
-    0x00000306: 'OBSOLETE_W3D_CHUNK_SHADOW_NODE',
+        0x00000301: 'HMODEL_HEADER',
+        0x00000302: 'NODE',
+        0x00000303: 'COLLISION_NODE',
+        0x00000304: 'SKIN_NODE',
+        0x00000305: 'OBSOLETE_W3D_CHUNK_HMODEL_AUX_DATA',
+        0x00000306: 'OBSOLETE_W3D_CHUNK_SHADOW_NODE',
 
     0x00000400: 'LODMODEL',
-    0x00000401: 'LODMODEL_HEADER',
-    0x00000402: 'LOD',
+        0x00000401: 'LODMODEL_HEADER',
+        0x00000402: 'LOD',
 
     0x00000420: 'COLLECTION',
-    0x00000421: 'COLLECTION_HEADER',
-    0x00000422: 'COLLECTION_OBJ_NAME',
-    0x00000423: 'PLACEHOLDER',
-    0x00000424: 'TRANSFORM_NODE',
+        0x00000421: 'COLLECTION_HEADER',
+        0x00000422: 'COLLECTION_OBJ_NAME',
+        0x00000423: 'PLACEHOLDER',
+        0x00000424: 'TRANSFORM_NODE',
 
     0x00000440: 'POINTS',
 
     0x00000460: 'LIGHT',
-    0x00000461: 'LIGHT_INFO',
-    0x00000462: 'SPOT_LIGHT_INFO',
-    0x00000463: 'NEAR_ATTENUATION',
-    0x00000464: 'FAR_ATTENUATION',
+        0x00000461: 'LIGHT_INFO',
+        0x00000462: 'SPOT_LIGHT_INFO',
+        0x00000463: 'NEAR_ATTENUATION',
+        0x00000464: 'FAR_ATTENUATION',
 
     0x00000500: 'EMITTER',
-    0x00000501: 'EMITTER_HEADER',
-    0x00000502: 'EMITTER_USER_DATA',
-    0x00000503: 'EMITTER_INFO',
-    0x00000504: 'EMITTER_INFOV2',
-    0x00000505: 'EMITTER_PROPS',
-    0x00000506: 'OBSOLETE_W3D_CHUNK_EMITTER_COLOR_KEYFRAME',
-    0x00000507: 'OBSOLETE_W3D_CHUNK_EMITTER_OPACITY_KEYFRAME',
-    0x00000508: 'OBSOLETE_W3D_CHUNK_EMITTER_SIZE_KEYFRAME',
-    0x00000509: 'EMITTER_LINE_PROPERTIES',
-    0x0000050A: 'EMITTER_ROTATION_KEYFRAMES',
-    0x0000050B: 'EMITTER_FRAME_KEYFRAMES',
-    0x0000050C: 'EMITTER_BLUR_TIME_KEYFRAMES',
+        0x00000501: 'EMITTER_HEADER',
+        0x00000502: 'EMITTER_USER_DATA',
+        0x00000503: 'EMITTER_INFO',
+        0x00000504: 'EMITTER_INFOV2',
+        0x00000505: 'EMITTER_PROPS',
+        0x00000506: 'OBSOLETE_W3D_CHUNK_EMITTER_COLOR_KEYFRAME',
+        0x00000507: 'OBSOLETE_W3D_CHUNK_EMITTER_OPACITY_KEYFRAME',
+        0x00000508: 'OBSOLETE_W3D_CHUNK_EMITTER_SIZE_KEYFRAME',
+        0x00000509: 'EMITTER_LINE_PROPERTIES',
+        0x0000050A: 'EMITTER_ROTATION_KEYFRAMES',
+        0x0000050B: 'EMITTER_FRAME_KEYFRAMES',
+        0x0000050C: 'EMITTER_BLUR_TIME_KEYFRAMES',
 
-    0x00000600: 'AGGREGATE',
-    0x00000601: 'AGGREGATE_HEADER',
-    0x00000602: 'AGGREGATE_INFO',
-    0x00000603: 'TEXTURE_REPLACER_INFO',
-    0x00000604: 'AGGREGATE_CLASS_INFO',
+        0x00000600: 'AGGREGATE',
+        0x00000601: 'AGGREGATE_HEADER',
+            0x00000602: 'AGGREGATE_INFO',
+        0x00000603: 'TEXTURE_REPLACER_INFO',
+        0x00000604: 'AGGREGATE_CLASS_INFO',
 
     0x00000700: 'HLOD',
-    0x00000701: 'HLOD_HEADER',
-    0x00000702: 'HLOD_LOD_ARRAY',
-    0x00000703: 'HLOD_SUB_OBJECT_ARRAY_HEADER',
-    0x00000704: 'HLOD_SUB_OBJECT',
-    0x00000705: 'HLOD_AGGREGATE_ARRAY',
-    0x00000706: 'HLOD_PROXY_ARRAY',
+        0x00000701: 'HLOD_HEADER',
+        0x00000702: 'HLOD_LOD_ARRAY',
+            0x00000703: 'HLOD_SUB_OBJECT_ARRAY_HEADER',
+            0x00000704: 'HLOD_SUB_OBJECT',
+        0x00000705: 'HLOD_AGGREGATE_ARRAY',
+        0x00000706: 'HLOD_PROXY_ARRAY',
 
     0x00000740: 'BOX',
     0x00000741: 'SPHERE',
@@ -149,16 +150,16 @@ w3d_keys = {
     0x00000750: 'NULL_OBJECT',
 
     0x00000800: 'LIGHTSCAPE',
-    0x00000801: 'LIGHTSCAPE_LIGHT',
-    0x00000802: 'LIGHT_TRANSFORM',
+        0x00000801: 'LIGHTSCAPE_LIGHT',
+            0x00000802: 'LIGHT_TRANSFORM',
 
     0x00000900: 'DAZZLE',
-    0x00000901: 'DAZZLE_NAME',
-    0x00000902: 'DAZZLE_TYPENAME',
+        0x00000901: 'DAZZLE_NAME',
+        0x00000902: 'DAZZLE_TYPENAME',
 
     0x00000A00: 'SOUNDROBJ',
-    0x00000A01: 'SOUNDROBJ_HEADER',
-    0x00000A02: 'SOUNDROBJ_DEFINITION',
+        0x00000A01: 'SOUNDROBJ_HEADER',
+        0x00000A02: 'SOUNDROBJ_DEFINITION',
 }
 
 w3d_save_keys = {v:k for k, v in w3d_keys.items()}
@@ -168,8 +169,10 @@ class node:
         self.children = []
         self.binary = None
         self.size = 0
+
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
     def write(self, file):
         file.write(struct.pack('LL',
             w3d_save_keys[self.type().upper()],
@@ -179,12 +182,15 @@ class node:
             file.write(self.binary)
         for c in self.children:
             c.write(file)
+
     def pack(self):
         for c in self.children:
             c.pack()
             self.size += 8 + c.size
+
     def type(self):
         return self.__class__.__name__[5:]
+
     def log(self, max, indent=0):
         print(('\t'*indent) + self.type())
         
@@ -197,15 +203,18 @@ class node:
         if indent < max:
             for n in self.children:
                 n.log(max, indent)
+
     def add(self, type):
         c = globals()['node_' + type]()
         self.children.append(c)
         return c
+
     def get(self, name):
         for i in self.children:
             if i.type() == name:
                 return i
         return None
+
     def getRec(self, name):
         for i in self.children:
             if i.type() == name:
@@ -214,12 +223,14 @@ class node:
             if res != None:
                 return res
         return None
+
     def find(self, name):
         all = []
         for i in self.children:
             if i.type() == name:
                 all.append(i)
         return all
+
     def findRec(self, name, all=None):
         if all == None:
             all = []
@@ -232,6 +243,7 @@ class node:
 class node_mesh(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_mesh_header3(node):
     def __init__(self):
         super(node_mesh_header3, self).__init__()
@@ -292,6 +304,7 @@ class node_mesh_header3(node):
             self.SphRadius,
         )
         self.size += struct.calcsize('LL16s16sLLLLlLLLL3f3f3ff')
+
 class node_vertices(node):
     def __init__(self):
         super(node_vertices, self).__init__()
@@ -308,6 +321,7 @@ class node_vertices(node):
                 v[0], v[1], v[2]
             )
             self.size += struct.calcsize('3f')
+
 class node_vertex_normals(node):
     def __init__(self):
         super(node_vertex_normals, self).__init__()
@@ -324,6 +338,7 @@ class node_vertex_normals(node):
                 v[0], v[1], v[2]
             )
             self.size += struct.calcsize('3f')
+
 class node_vertex_shade_indices(node):
     def __init__(self):
         super(node_vertex_shade_indices, self).__init__()
@@ -340,6 +355,7 @@ class node_vertex_shade_indices(node):
                 i
             )
             self.size += struct.calcsize('L')
+
 class node_vertex_influences(node):
     def __init__(self):
         super(node_vertex_influences, self).__init__()
@@ -356,6 +372,7 @@ class node_vertex_influences(node):
                 i, 0, 0, 0, 0, 0, 0
             )
             self.size += struct.calcsize('H6B')
+
 class node_triangles(node):
     def __init__(self):
         super(node_triangles, self).__init__()
@@ -380,12 +397,15 @@ class node_triangles(node):
                 t['Dist']
             )
             self.size += struct.calcsize('3LL3ff')
+
 class node_vertex_materials(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_vertex_material(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_vertex_material_name(node):
     def __init__(self):
         super(node_vertex_material_name, self).__init__()
@@ -395,6 +415,7 @@ class node_vertex_material_name(node):
     def pack(self):
         self.binary = s2b(self.name)
         self.size = len(self.binary)
+
 class node_vertex_material_info(node):
     def __init__(self):
         super(node_vertex_material_info, self).__init__()
@@ -430,6 +451,7 @@ class node_vertex_material_info(node):
             self.Translucency
         )
         self.size += struct.calcsize('L4B4B4B4Bfff')
+
 class node_dcg(node):
     def read(self, file, size):
         self.dcg = []
@@ -474,6 +496,7 @@ class node_material_info(node):
 class node_material_pass(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_vertex_material_ids(node):
     def __init__(self):
         super(node_vertex_material_ids, self).__init__()
@@ -490,6 +513,7 @@ class node_vertex_material_ids(node):
                 i
             )
             self.size += struct.calcsize('L')
+
 class node_shader_ids(node):
     def __init__(self):
         super(node_shader_ids, self).__init__()
@@ -506,6 +530,7 @@ class node_shader_ids(node):
                 i
             )
             self.size += struct.calcsize('L')
+
 class node_shaders(node):
     def __init__(self):
         super(node_shaders, self).__init__()
@@ -552,9 +577,11 @@ class node_shaders(node):
                 0
             )
             self.size += struct.calcsize('16B')
+
 class node_texture_stage(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_texture_ids(node):
     def __init__(self):
         super(node_texture_ids, self).__init__()
@@ -571,6 +598,7 @@ class node_texture_ids(node):
                 i
             )
             self.size += struct.calcsize('L')
+
 class node_stage_texcoords(node):
     def __init__(self):
         super(node_stage_texcoords, self).__init__()
@@ -587,18 +615,40 @@ class node_stage_texcoords(node):
                 t[0], t[1]
             )
             self.size += struct.calcsize('2f')
+
 class node_texture_texcoords(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_textures(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_texture(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
+class node_aabtree(node):
+    def read(self, file, size):
+        self.children = parse_nodes(file, size)
+
+class node_aabtree_header(node):
+    def __init__(self):
+        super(node_aabtree_header, self).__init__()
+        self.NodeCount = 0
+        self.PolyCount = 0
+        # Padding 24 bytes
+
+    def read(self, file, size):
+        data = read_struct(file, '2I')
+        self.NodeCount = data[0]
+        self.PolyCount = data[1]
+        file.read(24) # Skip padding
+
 class node_hierarchy(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_texture_name(node):
     def __init__(self):
         super(node_texture_name, self).__init__()
@@ -608,6 +658,32 @@ class node_texture_name(node):
     def pack(self):
         self.binary = s2b(self.name)
         self.size = len(self.binary)
+
+class node_texture_info(node):
+    def __init__(self):
+        super(node_texture_info, self).__init__()
+
+        self.Attributes = 0
+        self.AnimType = 0
+        self.FrameCount = 0
+        self.FrameRate = 0
+
+    def read(self, file, size):
+        data = read_struct(file, '2HIf')
+        self.Attributes = data[0] # flags for this texture
+        self.AnimType = data[1] # animation logic
+        self.FrameCount = data[2] # Number of frames (1 if not animated)
+        self.FrameRate = data[3] # Frame rate, frames per second in floating point
+
+    def pack(self):
+        self.binary = struct.pack('2HIf',
+            self.Attributes,
+            self.AnimType,
+            self.FrameCount,
+            self.FrameRate
+        )
+        self.size = struct.calcsize('2HIf')
+
 class node_hierarchy_header(node):
     def __init__(self):
         super(node_hierarchy_header, self).__init__()
@@ -629,6 +705,7 @@ class node_hierarchy_header(node):
             self.Center[0],self.Center[1],self.Center[2],
         )
         self.size += struct.calcsize('L16sL3f')
+
 class node_pivots(node):
     def __init__(self):
         super(node_pivots, self).__init__()
@@ -655,9 +732,221 @@ class node_pivots(node):
                 p['Rotation'][0],p['Rotation'][1],p['Rotation'][2],p['Rotation'][3]
             )
             self.size += struct.calcsize('16sL3f3f4f')
+
+class node_compressed_animation(node):
+    def read(self, file, size):
+        # Manually read the animation because the channel's format is dependent on the header's flavor
+        # The header node type is just generic compressed_animation_channel
+        read_header(file) # read node header first (unused)
+        header = node_compressed_animation_header()
+        header.read(file, size)
+        size -= struct.calcsize('I16s16sI2H')
+
+        self.children.append(header)
+
+        # Special parse_nodes
+        while size > 0:
+            ci = read_header(file)
+            if ci == None:
+                continue
+
+            if ci[0] == 'ERROR':
+                print('Trying to parse unknown node (ERROR) - cannot continue')
+                break
+            
+            # Normal parsing for any non-special nodes
+            if ci[0].lower() != 'compressed_animation_channel':
+                # instantiate and load node
+                try:
+                    the_node = globals()['node_' + ci[0].lower()]()
+                    the_node.read(file, ci[1])
+                    self.children.append(the_node)
+                except KeyError:
+                    file.read(ci[1]) # Skip the node's data
+                    print('ignored: node_' + ci[0].lower())
+            else:
+                # Our special nodes
+                channel = None
+                if header.Flavor == 0:
+                    channel = node_timecoded_animation_channel()
+                elif header.Flavor == 1:
+                    channel = node_adaptivedelta_animation_channel()
+
+                if channel != None:
+                    channel.read(file, ci[1])
+                    self.children.append(channel)
+                else:
+                    file.read(ci[1]) # Skip node data
+
+            
+            # limit size for nested chunks
+            size -= 8 + ci[1] # header size + chunk size
+
+class node_compressed_animation_header(node):
+    def __init__(self):
+        super(node_compressed_animation_header, self).__init__()
+
+        self.Version = 0
+        self.Name = "UNTITLED"
+        self.HierarchyName = "UNTITLED"
+        self.NumFrames = 0
+        self.FrameRate = 0
+        self.Flavor = 0 # Compression type (0-timecoded, 1-adaptive delta, 2-valid)
+
+    def read(self, file, size):
+        data = read_struct(file, 'I16s16sI2H')
+        
+        self.Version = data[0]
+        self.Name = b2s(data[1])
+        self.HierarchyName = b2s(data[2])
+        self.NumFrames = data[3]
+        self.FrameRate = data[4]
+        self.Flavor = data[5]
+
+        print('anim ' + self.Name + '.' + self.HierarchyName + ' framecount ' + str(self.NumFrames) + ' framerate ' + str(self.FrameRate) + ' flavor ' + str(self.Flavor))
+
+    def pack(self):
+        self.binary = struct.pack('I16s16sI2H',
+            self.Version,
+            s2b(self.Name),
+            s2b(self.HierarchyName),
+            self.NumFrames,
+            self.FrameRate,
+            self.Flavor
+        )
+        self.size = struct.calcsize('I16s16sI2H')
+
+class node_timecoded_animation_channel(node):
+    def __init__(self):
+        super(node_timecoded_animation_channel, self).__init__()
+
+        self.NumTimeCodes = 0
+        self.Pivot = 0
+        self.VectorLen = 0
+        self.Flags = 0
+        self.Data = ''
+
+    def read(self, file, size):
+        data = read_struct(file, 'IH2B')
+        
+        self.NumTimeCodes = data[0] # number of time coded entries
+        self.Pivot = data[1] # pivot affected by this channel
+        self.VectorLen = data[2] # length of each vector in this channel
+        self.Flags = data[3] # channel type.
+
+        # FIXME: Temporary until I figure out how to calculate size
+        self.Data = file.read(size - struct.calcsize('IH2B')) # will be (NumTimeCodes * ((VectorLen * sizeof(uint32)) + sizeof(uint32)))
+
+        print('timecoded anim ' + str(self.NumTimeCodes) + ' pivot ' + str(self.Pivot) + ' vectorlen ' + str(self.VectorLen) + ' flags ' + str(self.Flags))
+
+    def pack(self):
+        pass
+
+class node_adaptivedelta_animation_channel(node):
+    def __init__(self):
+        super(node_adaptivedelta_animation_channel, self).__init__()
+
+class node_animation(node):
+    def read(self, file, size):
+        self.children = parse_nodes(file, size)
+
+class node_animation_header(node):
+    def __init__(self):
+        super(node_animation_header, self).__init__()
+
+        self.Version = 0
+        self.Name = "UNTITLED"
+        self.HierarchyName = "UNTITLED"
+        self.NumFrames = 0
+        self.FrameRate = 0
+
+    def read(self, file, size):
+        data = read_struct(file, 'I16s16s2I')
+        self.Version = data[0]
+        self.Name = b2s(data[1])
+        self.HierarchyName = b2s(data[2])
+        self.NumFrames = data[3]
+        self.FrameRate = data[4]
+
+        print('anim ' + self.Name + '.' + self.HierarchyName + ' framecount ' + str(self.NumFrames) + ' framerate ' + str(self.FrameRate))
+
+    def pack(self):
+        self.binary = struct.pack('I16s16s2I',
+            self.Version,
+            s2b(self.Name),
+            s2b(self.HierarchyName),
+            self.NumFrames,
+            self.FrameRate
+        )
+        self.size = struct.calcsize('I16s16s2I')
+
+class node_animation_channel(node):
+    def __init__(self):
+        super(node_animation_channel, self).__init__()
+
+        self.FirstFrame = 0
+        self.LastFrame = 0
+        self.VectorLen = 0
+        self.Flags = 0
+        self.Pivot = 0
+        self.Data = ''
+
+    def read(self, file, size):
+        data = read_struct(file, '6H')
+        self.FirstFrame = data[0]
+        self.LastFrame = data[1]
+        self.VectorLen = data[2] # length of each vector in this channel
+        self.Flags = data[3] # channel type.
+        self.Pivot = data[4] # pivot affected by this channel (id)
+
+        print('anim channel frame ' + str(self.FirstFrame) + ' to ' + str(self.LastFrame) + ' vector len ' + str(self.VectorLen) + ' flags ' + str(self.Flags) + ' pivot ' + str(self.Pivot))
+        
+        # Animation data
+        self.Data = file.read(((self.LastFrame - self.FirstFrame + 1) * self.VectorLen) * 4) # will be (LastFrame - FirstFrame + 1) * VectorLen long (times sizeof(float))
+
+    def pack(self):
+        self.binary = struct.pack('6H',
+            self.FirstFrame,
+            self.LastFrame,
+            self.VectorLen,
+            self.Flags,
+            self.Pivot,
+        )
+        self.binary += s2b(self.Data)
+        self.size = len(self.binary)
+
+class node_bit_channel(node):
+    def __init__(self):
+        super(node_bit_channel, self).__init__()
+
+        self.FirstFrame = 0
+        self.LastFrame = 0
+        self.Flags = 0
+        self.Pivot = 0
+        self.DefaultVal = 0
+        self.Data = ''
+
+    def read(self, file, size):
+        data = read_struct(file, '4HB')
+
+        self.FirstFrame = data[0] # all frames outside "First" and "Last" are assumed = DefaultVal
+        self.LastFrame = data[1]
+        self.Flags = data[2] # channel type. (0-vis (turn meshes on and off depending on anim frame), 1-timecoded vis)
+        self.Pivot = data[3] # pivot affected by this channel
+        self.DefaultVal = data[4] # default state when outside valid range.
+
+        self.Data = file.read(ceil((self.LastFrame - self.FirstFrame + 1) / 8)) # will be (LastFrame - FirstFrame + 1) / 8 long
+
+        print('bit channel ' + str(self.FirstFrame) + ' to ' + str(self.LastFrame) + ' flags ' + str(self.Flags) + ' pivot ' + str(self.Pivot) + ' default ' + str(self.DefaultVal))
+
+    def pack(self):
+        # TODO
+        raise NotImplementedError()
+
 class node_aggregate(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_aggregate_header(node):
     def read(self, file, size):
         data = read_struct(file, 'L16s')
@@ -666,9 +955,10 @@ class node_aggregate_header(node):
     def pack(self):
         self.binary = struct.pack('L16s',
             self.Version,
-            b2s(self.Name)
+            s2b(self.Name)
         )
         self.size += struct.calcsize('L16s')
+
 class node_aggregate_info(node):
     def read(self, file, size):
         data = read_struct(file, '32sL')
@@ -695,6 +985,7 @@ class node_aggregate_info(node):
                 s2b(s['SubobjectName'], 32), s2b(s['BoneName'], 32)
             )
             self.size += struct.calcsize('32s32s')
+
 class node_aggregate_class_info(node):
     def read(self, file, size):
         data = read_struct(file, 'LL3L')
@@ -707,9 +998,11 @@ class node_aggregate_class_info(node):
             0, 0, 0
         )
         self.size += struct.calcsize('LL3L')
+
 class node_hlod(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_hlod_header(node):
     def __init__(self):
         super(node_hlod_header, self).__init__()
@@ -731,15 +1024,19 @@ class node_hlod_header(node):
             s2b(self.HierarchyName, 16)
         )
         self.size += struct.calcsize('LL16s16s')
+
 class node_hlod_lod_array(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_hlod_aggregate_array(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_hlod_proxy_array(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
+
 class node_hlod_sub_object_array_header(node):
     def __init__(self):
         super(node_hlod_sub_object_array_header, self).__init__()
@@ -755,6 +1052,7 @@ class node_hlod_sub_object_array_header(node):
             self.MaxScreenSize
         )
         self.size += struct.calcsize('Lf')
+
 class node_hlod_sub_object(node):
     def __init__(self):
         super(node_hlod_sub_object, self).__init__()
@@ -770,6 +1068,7 @@ class node_hlod_sub_object(node):
             s2b(self.Name, 32)
         )
         self.size += struct.calcsize('L32s')
+
 class node_box(node):
     def read(self, file, size):
         data = read_struct(file, 'LL32s4B3f3f')
@@ -789,6 +1088,7 @@ class node_box(node):
             self.Extent[0], self.Extent[1], self.Extent[2],
         )
         self.size += struct.calcsize('LL32s4B3f3f')
+
 class node_sphere(node):
     def read(self, file, size):
         data = read_struct(file, 'LL32s4B3f3f')
@@ -808,6 +1108,7 @@ class node_sphere(node):
             self.Extent[0], self.Extent[1], self.Extent[2],
         )
         self.size += struct.calcsize('LL32s4B3f3f')
+
 class node_ring(node):
     def read(self, file, size):
         data = read_struct(file, 'LL32s4B3f3f')
@@ -827,6 +1128,7 @@ class node_ring(node):
             self.Extent[0], self.Extent[1], self.Extent[2],
         )
         self.size += struct.calcsize('LL32s4B3f3f')
+
 class node_(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
@@ -864,6 +1166,10 @@ def parse_nodes(file, size=0x7FFFFFFF):
         ci = read_header(file)
         if ci == None:
             break;
+
+        if ci[0] == 'ERROR':
+            print('Trying to parse unknown node (ERROR) - cannot continue')
+            break
         
         # instantiate and load node
         try:
@@ -871,7 +1177,7 @@ def parse_nodes(file, size=0x7FFFFFFF):
             the_node.read(file, ci[1])
             nodes.append(the_node)
         except KeyError:
-            file.read(ci[1])
+            file.read(ci[1]) # Skip the node's data
             print('ignored: node_' + ci[0].lower())
         
         # limit size for nested chunks

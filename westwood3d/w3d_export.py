@@ -232,7 +232,7 @@ class ExportWestwood3D(Operator, ExportHelper):
             description="Example Tooltip",
             default=True,
             )
-
+    
     type = EnumProperty(
             name="Example Enum",
             description="Choose between two items",

@@ -15,6 +15,7 @@ def make_mats(materials):
         tree = mat.node_tree
         for n in tree.nodes:
             tree.nodes.remove(n)
+            n = None # Fix for pytools vs debugger crash (accessing invalid memory)
         
         w3d = mat.westwood3d
         
@@ -32,7 +33,10 @@ def make_mats(materials):
         for p in range(len(pdata)):
             
             w3d.mpass[p].name = pdata[p]['vertex_material']['name']
-            name += w3d.mpass[p].name + '-'
+            if name != '' and w3d.mpass[p].name != '':
+                name += '-' # Add a dash to separate the names
+
+            name += w3d.mpass[p].name
             
             vm = pdata[p]['vertex_material']['info']
             w3d.mpass[p].ambient = vm.Ambient
@@ -62,43 +66,73 @@ def make_mats(materials):
                     w3d.mpass[p].stage0 = t.name
                 else:
                     w3d.mpass[p].stage1 = t.name
+
                 s += 1
+
+            if s > 1:
+                print('More than 2 stages detected (' + s + ')')
                 
         # set name
         if name != '':
             mat.name = name
+
+        # Position the nodes for formatting and readability
+        curXPos = 0.0
+        gapWidth = 80
         
         # Create basic node material
-        nodegeo = tree.nodes.new('GEOMETRY')
-        nodeout = tree.nodes.new('OUTPUT')
+        nodegeo = tree.nodes.new('ShaderNodeGeometry')
+        curXPos += nodegeo.width + gapWidth
+
+        nodeout = tree.nodes.new('ShaderNodeOutput')
         
         if len(w3d.mpass) > 1:
-            nodemix = tree.nodes.new('MIX_RGB')
+            nodemix = tree.nodes.new('ShaderNodeMixRGB')
+
             tree.links.new(nodegeo.outputs[6], nodemix.inputs[0])
             tree.links.new(nodemix.outputs[0], nodeout.inputs[0])
             r = 1
+
             for mpass in w3d.mpass:
                 if mpass.stage0 in bpy.data.textures:
-                    nodetex = tree.nodes.new('TEXTURE')
+                    nodetex = tree.nodes.new('ShaderNodeTexture')
+                    nodetex.location = [curXPos, 0.0]
+                    curXPos += nodetex.width + gapWidth
+
                     nodetex.texture = bpy.data.textures[mpass.stage0]
                     tree.links.new(nodegeo.outputs[4], nodetex.inputs[0])
                     tree.links.new(nodetex.outputs[1], nodemix.inputs[r])
                 else:
-                    nodeval = tree.nodes.new('VALUE')
+                    nodeval = tree.nodes.new('ShaderNodeValue')
+                    nodeval.location = [curXPos, 0.0]
+                    curXPos += nodeval.width + gapWidth
+
                     nodeval.outputs[0].default_value = 1.0
                     tree.links.new(nodeval.outputs[0], nodemix.inputs[r])
+
                 r += 1
                 if r > 2:
                     break
+
+            # Reposition the mix node last
+            nodemix.location = [curXPos, 0.0]
+            curXPos += nodemix.width + gapWidth
         else:
             for mpass in w3d.mpass:
+                # Some materials have nothing as stage0
                 if mpass.stage0 in bpy.data.textures:
-                    nodetex = tree.nodes.new('TEXTURE')
+                    nodetex = tree.nodes.new('ShaderNodeTexture')
+                    nodetex.location = [curXPos, 0.0]
+                    curXPos += nodetex.width + gapWidth
+
                     nodetex.texture = bpy.data.textures[mpass.stage0]
                     tree.links.new(nodegeo.outputs[4], nodetex.inputs[0])
                     tree.links.new(nodetex.outputs[1], nodeout.inputs[0])
                     break
 
+        # Put the output node last
+        nodeout.location = [curXPos, 0.0]
+        curXPos += nodeout.width + gapWidth
 
 def deform_mesh(mesh, mdata, pivots):
     inf = mdata.get('vertex_influences')
@@ -112,6 +146,7 @@ def deform_mesh(mesh, mdata, pivots):
         v.co = pivots[inf[v.index]]['blender_object'].matrix_world * v.co
     bm.normal_update()
     bm.to_mesh(mesh)
+
 def make_shapes(root):
     shapes = []
     shapes += root.find('box')
@@ -245,8 +280,18 @@ def load_images(root, paths):
     # get every image
     filenames = root.findRec('texture_name')
     
-    # load images. Blender can figure out duplicates
     for fn in filenames:
+        # Don't add duplicates.
+        if bpy.data.images.find(fn.name) != -1:
+            #print('duplicate image:  ' + fn.name)
+            continue
+        elif bpy.data.images.find(os.path.splitext(fn.name)[0] + '.dds') != -1:
+            # Set the proper extension
+            fn.name = os.path.splitext(fn.name)[0] + '.dds'
+
+            #print('duplicate image:  ' + fn.name)
+            continue
+
         img = None
         for path in paths:
             try:
@@ -260,11 +305,14 @@ def load_images(root, paths):
                 except:
                     pass
             
+            # If image loaded, break
             if img != None:
                 break
         
         if img == None:
             print('image not loaded: ' + fn.name)
+        else:
+            print('image loaded:     ' + fn.name)
     
 def shift_layer(ob, n):
     for i in range(len(ob.layers)):
@@ -276,6 +324,8 @@ def shift_layer(ob, n):
 def make_pivots(p, parent=None):
     
     subobj = []
+
+    # FIXME: When the user has multiple layers selected, this fucks up and puts the objects in incorrect layers.
     
     # get sub objects
     for data, lod in p['obj']:
@@ -365,6 +415,87 @@ def make_b(ob, arm, parent=None):
     for c in ob.children:
         make_b(c, arm, bone)
     
+def make_anim(anim):
+    # TODO: w3d animations have multiple channels, channels are applied to individual pivot points
+    # However, blender doesn't allow multiple objects to share a single action without sharing the movements as well.
+    # So we have to create actions for each pivot point
+    
+    for channel in anim['channels']:
+        pivot = channel['pivot']
+        bobj = pivot['blender_object']
+        bobj.rotation_mode = 'QUATERNION'
+
+        action = None
+        actName = anim['name'] + '.' + pivot['name']
+        if bpy.data.actions.find(actName) == -1:
+            action = bpy.data.actions.new(name=actName)
+        else:
+            action = bpy.data.actions.get(actName)
+
+        if bobj.animation_data == None:
+            bobj.animation_data_create()
+            bobj.animation_data.action = action
+
+        datatype = ''
+        idx = -1
+        if channel['type'] == 'X':
+            datatype = 'location'
+            idx = 0
+        elif channel['type'] == 'Y':
+            datatype = 'location'
+            idx = 1
+        elif channel['type'] == 'Z':
+            datatype = 'location'
+            idx = 2
+        elif channel['type'] == 'XR':
+            datatype = 'rotation_euler'
+            idx = 0
+        elif channel['type'] == 'YR':
+            datatype = 'rotation_euler'
+            idx = 1
+        elif channel['type'] == 'ZR':
+            datatype = 'rotation_euler'
+            idx = 2
+        elif channel['type'] == 'Q':
+            datatype = 'rotation_quaternion'
+            idx = -1
+
+        firstFrame = channel['firstframe']
+        lastFrame = channel['lastframe']
+
+        # Channel data stuff is an offset from the object's original position.
+        # Not quaternion
+        if channel['type'] != 'Q':
+            fcu = action.fcurves.new(datatype, idx)
+
+            initialLoc = bobj.location[idx]
+
+            curFrame = firstFrame
+            for vec in channel['data']:
+                fcu.keyframe_points.insert(curFrame, initialLoc + vec[0])
+
+                curFrame += 1
+        elif channel['type'] == 'Q':
+            # Quaternions are special. 4 vector components are included in the data instead of just 1
+            # Also blender is backwards and defines quaternions as w x y z, w3d x y z w
+            fcus = []
+            for i in range(0, 4):
+                fcus.append(action.fcurves.new(data_path=datatype, index=i))
+
+            initialQuat = mathutils.Quaternion(bobj.rotation_quaternion)
+
+            curFrame = firstFrame
+            for vec in channel['data']:
+                quat = mathutils.Quaternion((vec[3], vec[0], vec[1], vec[2]))
+                rotQuat = initialQuat * quat
+
+                fcus[0].keyframe_points.insert(curFrame, rotQuat.w)
+                fcus[1].keyframe_points.insert(curFrame, rotQuat.x)
+                fcus[2].keyframe_points.insert(curFrame, rotQuat.y)
+                fcus[3].keyframe_points.insert(curFrame, rotQuat.z)
+
+                curFrame += 1
+
     
 def load_scene(root, paths, ignore_lightmap):
     
@@ -374,6 +505,7 @@ def load_scene(root, paths, ignore_lightmap):
     
     robj = w3d_util.collect_render_objects(root)
     pivots = w3d_util.make_pivots(root, robj)
+    anims = w3d_util.make_anims(root, pivots)
     
     make_mats(materials)
     make_meshes(root)
@@ -381,6 +513,9 @@ def load_scene(root, paths, ignore_lightmap):
     
     for p in pivots.values():
         make_pivots(p)
+
+    for a in anims.values():
+        make_anim(a)
     
     # load aggregates
     for ag in root.find('aggregate'):
@@ -402,6 +537,7 @@ def read_some_data(context, filepath, ignore_lightmap):
     paths = [
         current_path,
         os.path.join(current_path, '../textures/'),
+        os.path.join(current_path, 'textures/'),
     ]
     
     # Load data
@@ -411,14 +547,16 @@ def read_some_data(context, filepath, ignore_lightmap):
     load_scene(root, paths, ignore_lightmap)
     
     #bpy.context.scene.game_settings.material_mode = 'GLSL'
-    for scrn in bpy.data.screens:
-        if scrn.name == 'Default':
-            bpy.context.window.screen = scrn
-            for area in scrn.areas:
-                if area.type == 'VIEW_3D':
-                    for space in area.spaces:
-                        if space.type == 'VIEW_3D':
-                            space.viewport_shade = 'TEXTURED'
+
+    # Set the 3d view to textured
+    #for scrn in bpy.data.screens:
+    #    if scrn.name == 'Default':
+    #        bpy.context.window.screen = scrn
+    #        for area in scrn.areas:
+    #            if area.type == 'VIEW_3D':
+    #                for space in area.spaces:
+    #                    if space.type == 'VIEW_3D':
+    #                        space.viewport_shade = 'TEXTURED'
     
     print('done')
     return {'FINISHED'}
@@ -441,7 +579,7 @@ class ImportWestwood3D(Operator, ImportHelper):
     filter_glob = StringProperty(
             default="*.w3d",
             options={'HIDDEN'},
-            )
+    )
 
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling.
@@ -449,7 +587,7 @@ class ImportWestwood3D(Operator, ImportHelper):
             name="Don't import lightmaps",
             description="Lightmap data increases material count",
             default=True,
-            )
+    )
     
     def execute(self, context):
         return read_some_data(context, self.filepath, self.ignore_lightmap)
