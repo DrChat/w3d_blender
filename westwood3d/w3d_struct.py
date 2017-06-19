@@ -649,6 +649,59 @@ class node_hierarchy(node):
     def read(self, file, size):
         self.children = parse_nodes(file, size)
 
+class node_lightscape(node):
+    def read(self, file, size):
+        self.children = parse_nodes(file, size)
+
+class node_lightscape_light(node):
+    def read(self, file, size):
+        self.children = parse_nodes(file, size)
+
+class node_light(node):
+    def read(self, file, size):
+        self.children = parse_nodes(file, size)
+
+class node_light_info(node):
+    def __init__(self):
+        super(node_light_info, self).__init__()
+
+        self.Attributes = 0
+        self.Ambient = []
+        self.Diffuse = []
+        self.Specular = []
+        self.Intensity = 0.0
+
+    def read(self, file, size):
+        # 24b
+        # u32 Attributes
+        # u32 Unused
+        # RGB Ambient
+        # RGB Diffuse
+        # RGB Specular
+        # flt Intensity
+        data = read_struct(file, '2I4B4B4Bf')
+        self.Attributes = data[0]
+        self.Ambient = [data[2], data[3], data[4], data[5]]
+        self.Diffuse = [data[6], data[7], data[8], data[9]]
+        self.Specular = [data[10], data[11], data[12], data[13]]
+        self.Intensity = data[14]
+    
+    def pack(self):
+        pass
+
+class node_light_transform(node):
+    def __init__(self):
+        super(node_light_transform, self).__init__()
+
+        self.Transform = []
+
+    def read(self, file, size):
+        data = read_struct(file, '12f')
+
+        self.Transform.append((data[0], data[1], data[2], data[3]))
+        self.Transform.append((data[4], data[5], data[6], data[7]))
+        self.Transform.append((data[8], data[9], data[10], data[11]))
+
 class node_texture_name(node):
     def __init__(self):
         super(node_texture_name, self).__init__()
@@ -892,6 +945,15 @@ class node_animation_channel(node):
         self.Data = ''
 
     def read(self, file, size):
+        start = file.tell()
+
+        # u16 FirstFrame
+        # u16 LastFrame
+        # u16 VectorLen
+        # u16 Flags
+        # u16 Pivot
+        # u16 pad
+        # f32 Data[...]
         data = read_struct(file, '6H')
         self.FirstFrame = data[0]
         self.LastFrame = data[1]
@@ -904,6 +966,9 @@ class node_animation_channel(node):
         # Animation data
         self.Data = file.read(((self.LastFrame - self.FirstFrame + 1) * self.VectorLen) * 4) # will be (LastFrame - FirstFrame + 1) * VectorLen long (times sizeof(float))
 
+        end = file.tell()
+        file.read(size - (end - start)) # Skip unused bytes (??)
+
     def pack(self):
         self.binary = struct.pack('6H',
             self.FirstFrame,
@@ -911,6 +976,7 @@ class node_animation_channel(node):
             self.VectorLen,
             self.Flags,
             self.Pivot,
+            0,
         )
         self.binary += s2b(self.Data)
         self.size = len(self.binary)
@@ -1173,6 +1239,7 @@ def parse_nodes(file, size=0x7FFFFFFF):
         
         # instantiate and load node
         try:
+            # print('%s: %db' % (ci[0], ci[1]))
             the_node = globals()['node_' + ci[0].lower()]()
             the_node.read(file, ci[1])
             nodes.append(the_node)

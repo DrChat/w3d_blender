@@ -23,9 +23,9 @@ def make_pivots(root, robj):
     for hroot in root.find('hlod'):
         if hroot is None:
             continue
-        
+
         info = hroot.get('hlod_header')
-        
+
         hierarchy = None
         hname = None
         for h in root.find('hierarchy'):
@@ -33,10 +33,10 @@ def make_pivots(root, robj):
             if info.HierarchyName == hname:
                 hierarchy = h
                 break
-        
+
         if hierarchy is None:
             continue
-        
+
         # Compile pivot data into a proper tree
         pivots = []
         for pdata in hierarchy.get('pivots').pivots:
@@ -123,6 +123,9 @@ def make_anims(root, pivots):
 
             # Animation data
             size = ((chan.LastFrame - chan.FirstFrame + 1) * chan.VectorLen) * 4
+            if size != len(chan.Data):
+                raise ValueError('animation channel has bad data length')
+
             offset = 0
             while offset < size:
                 data = struct.unpack_from(str(chan.VectorLen) + 'f', chan.Data, offset);
