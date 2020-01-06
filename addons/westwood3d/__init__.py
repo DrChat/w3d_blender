@@ -2,7 +2,7 @@ bl_info = {
     "name": "Westwood3D Tools",
     "author": "Huw Pascoe",
     "version": (1, 0),
-    "blender": (2, 6, 9),
+    "blender": (2, 80, 0),
     "location": "Import, Export, Material Panel",
     "description": "Enables content authoring for C&C Renegade",
     "warning": "This is a preview and should not be used for projects",
