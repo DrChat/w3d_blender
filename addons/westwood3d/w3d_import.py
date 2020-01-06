@@ -2,6 +2,8 @@ import bpy
 import bmesh
 import mathutils
 import os
+from typing import cast
+
 from . import w3d_struct, w3d_aggregate, w3d_util
 
 def make_mats(materials):
@@ -10,12 +12,12 @@ def make_mats(materials):
         
         mat = bpy.data.materials.new('Material')
         mdata['BlenderMaterial'] = mat
-        
-        mat.use_nodes = True
-        tree = mat.node_tree
-        for n in tree.nodes:
-            tree.nodes.remove(n)
-            n = None # Fix for pytools vs debugger crash (accessing invalid memory)
+
+        # Setup material
+        mat.preview_render_type = 'CUBE'
+        mat.use_backface_culling = True
+        mat.blend_method = 'HASHED'
+        mat.shadow_method = 'HASHED'
         
         w3d = mat.westwood3d
         
@@ -25,52 +27,48 @@ def make_mats(materials):
         
         # add passes
         w3d.mpass_count = len(pdata)
-        while len(w3d.mpass) < w3d.mpass_count:
-            w3d.mpass.add()
         
         name = ''
-        texdone = False
         for p in range(len(pdata)):
-            
-            w3d.mpass[p].name = pdata[p]['vertex_material']['name']
-            if name != '' and w3d.mpass[p].name != '':
+            mpass = w3d.mpass[p]
+
+            mpass.name = pdata[p]['vertex_material']['name']
+            if name != '' and mpass.name != '':
                 name += '-' # Add a dash to separate the names
 
-            name += w3d.mpass[p].name
+            name += mpass.name
             
             vm = pdata[p]['vertex_material']['info']
-            w3d.mpass[p].ambient = vm.Ambient
-            w3d.mpass[p].diffuse = vm.Diffuse
-            w3d.mpass[p].specular = vm.Specular
-            w3d.mpass[p].emissive = vm.Emissive
-            w3d.mpass[p].shininess = vm.Shininess
-            w3d.mpass[p].opacity = vm.Opacity
-            w3d.mpass[p].translucency = vm.Translucency
-            w3d.mpass[p].mapping0 = str(vm.Mapping0)
-            w3d.mpass[p].mapping1 = str(vm.Mapping1)
+            mpass.ambient = vm.Ambient
+            mpass.diffuse = vm.Diffuse
+            mpass.specular = vm.Specular
+            mpass.emissive = vm.Emissive
+            mpass.shininess = vm.Shininess
+            mpass.opacity = vm.Opacity
+            mpass.translucency = vm.Translucency
+            mpass.mapping0 = str(vm.Mapping0)
+            mpass.mapping1 = str(vm.Mapping1)
             
             sh = pdata[p]['shader']
-            w3d.mpass[p].srcblend = str(sh['SrcBlend'])
-            w3d.mpass[p].destblend = str(sh['DestBlend'])
-            w3d.mpass[p].depthmask = sh['DepthMask']
-            w3d.mpass[p].alphatest = sh['AlphaTest']
+            mpass.srcblend = str(sh['SrcBlend'])
+            mpass.destblend = str(sh['DestBlend'])
+            mpass.depthmask = sh['DepthMask']
+            mpass.alphatest = sh['AlphaTest']
             
-            
-            textures = []
             s = 0
             for stage in pdata[p]['stages']:
-                t = bpy.data.textures.new(stage['name'], 'IMAGE')
+                t = bpy.data.textures.new(stage['name'], type='IMAGE')
                 t.image = bpy.data.images[stage['name']] if stage['name'] in bpy.data.images else None
                 
                 if s == 0:
-                    w3d.mpass[p].stage0 = t.name
+                    mpass.stage0 = t.name
                 else:
-                    w3d.mpass[p].stage1 = t.name
+                    mpass.stage1 = t.name
 
                 s += 1
 
             if s > 1:
-                print('More than 2 stages detected (' + s + ')')
+                print('More than 2 stages detected (' + str(s) + ')')
                 
         # set name
         if name != '':
@@ -80,41 +78,64 @@ def make_mats(materials):
         curXPos = 0.0
         gapWidth = 80
         
-        # Create basic node material
-        nodegeo = tree.nodes.new('ShaderNodeGeometry')
-        curXPos += nodegeo.width + gapWidth
+        # Setup node graph
+        mat.use_nodes = True
+        tree = mat.node_tree
+        for n in tree.nodes:
+            tree.nodes.remove(n)
 
-        nodediff = tree.nodes.new('ShaderNodeBsdfDiffuse')
+        # Create basic node material
+        nodetec = tree.nodes.new('ShaderNodeTexCoord')
+        curXPos += nodetec.width + gapWidth
+
+        nodeprin = tree.nodes.new('ShaderNodeBsdfPrincipled')
         nodeout = tree.nodes.new('ShaderNodeOutputMaterial')
+
+        # Reset some default values for the principled node
+        nodeprin.inputs[5].default_value = 0.0 # Specular
+        nodeprin.inputs[7].default_value = 0.0 # Roughness
+        nodeprin.inputs[11].default_value = 0.0 # Screen Tint
+        nodeprin.inputs[13].default_value = 0.0 # Clearcoat Roughness
         
         if len(w3d.mpass) > 1:
             nodemix = tree.nodes.new('ShaderNodeMixRGB')
 
-            tree.links.new(nodegeo.outputs[6], nodemix.inputs[0])
-            tree.links.new(nodemix.outputs[0], nodediff.inputs[0])
+            # Grab the vertex color. This is used for mixing.
+            nodecol = tree.nodes.new('ShaderNodeVertexColor')
+            nodecol.location = [nodetec.location[0], nodetec.location[1] - nodetec.height - gapWidth]
+
+            tree.links.new(nodecol.outputs[0], nodemix.inputs[0])
+            tree.links.new(nodemix.outputs[0], nodeprin.inputs[0])
             r = 1
 
+            curXInc = 0.0
             curYPos = 0.0
             for mpass in w3d.mpass:
                 if mpass.stage0 in bpy.data.textures:
                     nodetex = tree.nodes.new('ShaderNodeTexImage')
                     nodetex.image = bpy.data.textures[mpass.stage0].image
                     nodetex.location = [curXPos, curYPos]
+                    curXInc = max(curXInc, nodetex.width + gapWidth)
                     curYPos += nodetex.height + gapWidth
 
-                    tree.links.new(nodegeo.outputs[4], nodetex.inputs[0])
+                    tree.links.new(nodetec.outputs[2], nodetex.inputs[0])
                     tree.links.new(nodetex.outputs[0], nodemix.inputs[r])
                 else:
                     nodeval = tree.nodes.new('ShaderNodeValue')
                     nodeval.location = [curXPos, curYPos]
+                    curXInc = max(curXInc, nodeval.width + gapWidth)
                     curYPos += nodeval.height + gapWidth
 
                     nodeval.outputs[0].default_value = 1.0
                     tree.links.new(nodeval.outputs[0], nodemix.inputs[r])
 
+                # Silently ignore more than 2 passes :|
                 r += 1
                 if r > 2:
                     break
+            
+            # Increment the X position.
+            curXPos += curXInc
 
             # Reposition the mix node last
             nodemix.location = [curXPos, 0.0]
@@ -128,14 +149,20 @@ def make_mats(materials):
                     nodetex.location = [curXPos, 0.0]
                     curXPos += nodetex.width + gapWidth
 
-                    tree.links.new(nodegeo.outputs[4], nodetex.inputs[0])
-                    tree.links.new(nodetex.outputs[0], nodediff.inputs[0])
+                    tree.links.new(nodetec.outputs[2], nodetex.inputs[0])
+                    tree.links.new(nodetex.outputs[0], nodeprin.inputs[0])
+
+                    # Link up TexImage transparency to principled alpha.
+                    # Only if alphatest is enabled, or blending indicates alpha enabled.
+                    if mpass.alphatest or (mpass.srcblend == "2" and mpass.destblend == "5"):
+                        tree.links.new(nodetex.outputs[1], nodeprin.inputs[18])
+
                     break
 
         # Diffuse
-        nodediff.location = [curXPos, 0.0]
-        curXPos += nodediff.width + gapWidth
-        tree.links.new(nodediff.outputs[0], nodeout.inputs[0])
+        nodeprin.location = [curXPos, 0.0]
+        curXPos += nodeprin.width + gapWidth
+        tree.links.new(nodeprin.outputs[0], nodeout.inputs[0])
 
         # Put the output node last
         nodeout.location = [curXPos, 0.0]
@@ -150,12 +177,12 @@ def deform_mesh(mesh, mdata, pivots):
     bm = bmesh.new()
     bm.from_mesh(mesh)
     for v in bm.verts:
-        v.co = pivots[inf[v.index]]['blender_object'].matrix_world * v.co
+        v.co = pivots[inf[v.index]]['blender_object'].matrix_world @ v.co
     bm.normal_update()
     bm.to_mesh(mesh)
 
 
-def make_shapes(root):
+def make_shapes(root, collection):
     shapes = []
     shapes += root.find('box')
     shapes += root.find('sphere')
@@ -166,27 +193,28 @@ def make_shapes(root):
         ob.location = s.Center
         ob.scale = s.Extent
 
-        bpy.context.scene.objects.link(ob)
+        # add the shape to the collection
+        collection.objects.link(ob)
 
         if s.type() == 'ring':
-            ob.empty_draw_type = 'CIRCLE'
+            ob.empty_display_type = 'CIRCLE'
         elif s.type() == 'sphere':
-            ob.empty_draw_type = 'SPHERE'
+            ob.empty_display_type = 'SPHERE'
         else:  # box
-            ob.empty_draw_type = 'CUBE'
+            ob.empty_display_type = 'CUBE'
 
         # for pivot access
         s.blender_object = ob
 
 
-def make_meshes(root):
+def make_meshes(root: w3d_struct.node, collection):
     meshes = root.find('mesh')
     for m in meshes:
         info = m.get('mesh_header3')
         fullname = info.ContainerName + '.' + info.MeshName
 
-        verts = m.get('vertices').vertices
-        faces = m.get('triangles').triangles
+        verts = cast(w3d_struct.node_vertices, m.get('vertices')).vertices
+        faces = cast(w3d_struct.node_triangles, m.get('triangles')).triangles
 
         tex = m.findRec('texture_name')
         mpass = m.findRec('material_pass')
@@ -198,12 +226,11 @@ def make_meshes(root):
         # create mesh
         me = bpy.data.meshes.new(fullname)
 
-        # current bmesh's uv.new() doesn't work properly
-        # have to create UVlayers with the old API
         for p in range(len(mpass)):
             uvs = mpass[p].findRec('stage_texcoords')
             for uv in range(len(uvs)):
-                me.uv_textures.new('pass' + str(p + 1) + '.' + str(uv))
+                me.uv_layers.new(name='pass' + str(p + 1) + '.' + str(uv))
+
         bm = bmesh.new()
         bm.from_mesh(me)
 
@@ -218,7 +245,7 @@ def make_meshes(root):
             try:
                 bm.faces.new([bm.verts[i] for i in f['Vindex']]).material_index = f['Mindex']
             except:
-                print("duplicate faces encountered on:" + fullname)
+                print("duplicate faces encountered on: " + fullname)
 
         if hasattr(bm.faces, "ensure_lookup_table"):
             bm.faces.ensure_lookup_table()
@@ -241,13 +268,13 @@ def make_meshes(root):
                     for loop in bm.verts[v].link_loops:
                         col = dcg.dcg[v]
                         if alpha:
-                            loop[layer].r = col[3] / 255
-                            loop[layer].g = col[3] / 255
-                            loop[layer].b = col[3] / 255
+                            loop[layer].x = col[3] / 255
+                            loop[layer].y = col[3] / 255
+                            loop[layer].z = col[3] / 255
                         else:
-                            loop[layer].r = col[0] / 255
-                            loop[layer].g = col[1] / 255
-                            loop[layer].b = col[2] / 255
+                            loop[layer].x = col[0] / 255
+                            loop[layer].y = col[1] / 255
+                            loop[layer].z = col[2] / 255
 
         # Transfer UVs
         uvs = m.findRec('stage_texcoords')
@@ -257,37 +284,42 @@ def make_meshes(root):
                 for loop in bm.verts[v].link_loops:
                     loop[layer].uv = uvs[uvi].texcoords[v]
 
+        # Remove double vertices
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
 
         bm.normal_update()
         bm.to_mesh(me)
+        bm.free()
 
         # attach to object, place in scene
         ob = bpy.data.objects.new(fullname, me)
-        bpy.context.scene.objects.link(ob)
-        bpy.context.scene.objects.active = ob
+        collection.objects.link(ob)
 
-        for i in range(len(ob.layers)):
-            ob.layers[i] = False
+        user_text = cast(w3d_struct.node_mesh_user_text, m.get('mesh_user_text'))
+        if user_text:
+            ob["note"] = user_text.text
 
-        ob.layers[0] = True
+        # select the objct
+        ob.select_set(True)
+
+        # ob.layers[0] = True
         # move hidden objects to second layer
         if info.Attributes & 0x00001000:
             # move vis objects way over there
             if info.Attributes & 0x00000040:
-                ob.layers[5] = True
-                ob.layers[0] = False
+                ob.show_instancer_for_render = False
+                ob.show_instancer_for_viewport = False
             else:
-                ob.layers[10] = True
-                ob.layers[0] = False
+                ob.show_instancer_for_render = False
+                ob.show_instancer_for_viewport = False
 
         # materials
         for mat in m.Materials:
-            bpy.ops.object.material_slot_add()
-            ob.material_slots[ob.material_slots.__len__() - 1].material = mat['BlenderMaterial']
+            ob.data.materials.append(mat['BlenderMaterial'])
 
         # assign textures to uv map
         if tids != None and len(tids) > 0 and len(tex) > 0:
-            for uvlay in me.uv_textures:
+            for uvlay in me.uv_layers:
                 i = 0
                 for foo in uvlay.data:
                     try:
@@ -301,12 +333,13 @@ def make_meshes(root):
         m.blender_object = ob
 
 
-def make_lights(root):
+def make_lights(root, collection):
     lightscapes = root.find('lightscape')
     for ls in lightscapes:
+        # Add a new blender object for our lightscape.
         ls_ob = bpy.data.objects.new('Lightscape', None)
-        bpy.context.scene.objects.link(ls_ob)
-        ls_ob.empty_draw_type = 'CUBE'
+        collection.objects.link(ls_ob)
+        ls_ob.empty_display_type = 'CUBE'
 
         ls_lts = ls.find('lightscape_light')
         for ls_lt in ls_lts:
@@ -314,28 +347,33 @@ def make_lights(root):
             li = l.get('light_info')
             lt = ls_lt.get('light_transform')
 
+            power_mult = 1
+
             attr = li.Attributes
             type = 'NONE'
             name = 'None'
             if (attr & 0xFF) == 0x00000001:
                 type = 'POINT'
                 name = 'Point'
+                power_mult = 100
             elif (attr & 0xFF) == 0x00000002:
                 type = 'SUN'
                 name = 'Directional'
+                power_mult = 1
             elif (attr & 0xFF) == 0x00000003:
                 type = 'SPOT'
                 name = 'Spot'
+                power_mult = 100
 
             # Create new lamp datablock
-            lamp_data = bpy.data.lamps.new(name=name, type=type)
+            light_data = bpy.data.lights.new(name=name, type=type)
 
             # Create new object with our lamp datablock
-            lamp_object = bpy.data.objects.new(name=name, object_data=lamp_data)
-            lamp_object.parent = ls_ob
+            light_object = bpy.data.objects.new(name=name, object_data=light_data)
+            light_object.parent = ls_ob
 
             # Link lamp object to the scene so it'll appear in this scene
-            bpy.context.scene.objects.link(lamp_object)
+            collection.objects.link(light_object)
 
             mat = mathutils.Matrix([
                 [-lt.Transform[0][0], -lt.Transform[0][1], -lt.Transform[0][2], lt.Transform[0][3]],
@@ -343,31 +381,19 @@ def make_lights(root):
                 [-lt.Transform[2][0], -lt.Transform[2][1], -lt.Transform[2][2], lt.Transform[2][3]],
                 [0, 0, 0, 1]
             ])
-            lamp_object.matrix_world = mat
+            light_object.matrix_world = mat
 
-            lamp_data.use_nodes = True
-            tree = lamp_data.node_tree
-            for n in tree.nodes:
-                tree.nodes.remove(n)
+            # Set the color and intensity
+            light_data.color = [
+                li.Diffuse[0] / 255.0,
+                li.Diffuse[1] / 255.0,
+                li.Diffuse[2] / 255.0,
+            ]
 
-            # Position the nodes for formatting and readability
-            curXPos = 0.0
-            gapWidth = 80
-
-            nodeem = tree.nodes.new("ShaderNodeEmission")
-            nodeem.inputs[0].default_value[0] = li.Diffuse[0] / 255.0
-            nodeem.inputs[0].default_value[1] = li.Diffuse[1] / 255.0
-            nodeem.inputs[0].default_value[2] = li.Diffuse[2] / 255.0
-            nodeem.inputs[1].default_value = li.Intensity
-            curXPos += nodeem.width + gapWidth
-
-            nodeout = tree.nodes.new("ShaderNodeOutputLamp")
-            nodeout.location = [curXPos, 0.0]
-
-            tree.links.new(nodeem.outputs[0], nodeout.inputs[0])
+            light_data.energy = li.Intensity * power_mult
 
 
-def load_images(root, paths):
+def load_images(root: w3d_struct.node, paths):
     # get every image
     filenames = root.findRec('texture_name')
 
@@ -412,29 +438,32 @@ def shift_layer(ob, n):
             ob.layers[i] = False
             break
     
-def make_pivots(p, parent=None):
+def make_pivots(p, collection, parent=None):
     subobj = []
-
-    # FIXME: When the user has multiple layers selected, this fucks up and puts the objects in incorrect layers.
 
     # get sub objects
     for data, lod in p['obj']:
         obj = data.blender_object
         subobj.append(obj)
+
+        # LOD is -1 for aggregates.
         if lod == -1:
             for i in range(p['lodcount']):
-                obj.layers[i] = True
+                #obj.layers[i] = True
+                pass
         else:
-            shift_layer(obj, lod)
+            #shift_layer(obj, lod)
+            pass
 
     # proxy objects
     for name in p['prx']:
         ob = bpy.data.objects.new(name, None)
-        ob.empty_draw_type = 'CUBE'
-        ob.show_x_ray = True
-        bpy.context.scene.objects.link(ob)
-        for i in range(p['lodcount']):
-            ob.layers[i] = True
+        ob.empty_display_type = 'CUBE'
+        ob.show_in_front = True
+        
+        collection.objects.link(ob)
+        #for i in range(p['lodcount']):
+        #    ob.layers[i] = True
         subobj.append(ob)
 
     # create node
@@ -442,7 +471,7 @@ def make_pivots(p, parent=None):
         ob = subobj[0]
     else:
         ob = bpy.data.objects.new(p['name'], None)
-        bpy.context.scene.objects.link(ob)
+        collection.objects.link(ob)
         for sub in subobj:
             sub.parent = ob
 
@@ -456,12 +485,11 @@ def make_pivots(p, parent=None):
 
     # recursive
     for c in p['children']:
-        make_pivots(c, ob)
+        make_pivots(c, collection, ob)
 
     p['blender_object'] = ob
 
     # deform all meshes to match bones
-    bpy.context.scene.update()
     for data, lod in p['obj']:
         if data.type() == 'mesh':
             if data.get('vertex_influences') is not None:
@@ -469,12 +497,14 @@ def make_pivots(p, parent=None):
 
 
 def make_bones(ob_tree):
+    view_layer = bpy.context.view_layer
+
     name = ob_tree.name
     ob_tree.name = 'temp'
     arm = bpy.data.armatures.new(name)
     ob = bpy.data.objects.new(name, arm)
-    bpy.context.scene.objects.link(ob)
-    bpy.context.scene.objects.active = ob
+    view_layer.active_layer_collection.collection.objects.link(ob)
+
     bpy.ops.object.mode_set(mode='EDIT')
     make_b(ob_tree, arm)
     bpy.ops.object.mode_set(mode='OBJECT')
@@ -522,7 +552,10 @@ def make_anim(anim):
         if bpy.data.actions.find(actName) == -1:
             action = bpy.data.actions.new(name=actName)
         else:
+            # Hijack the existing action, clear its data.
             action = bpy.data.actions.get(actName)
+            for c in action.fcurves:
+                action.fcurves.remove(c)
 
         if bobj.animation_data == None:
             bobj.animation_data_create()
@@ -558,7 +591,7 @@ def make_anim(anim):
         # Channel data stuff is an offset from the object's original position.
         # Not quaternion
         if channel['type'] != 'Q':
-            fcu = action.fcurves.new(datatype, idx)
+            fcu = action.fcurves.new(datatype, index=idx)
 
             initialLoc = bobj.location[idx]
 
@@ -579,7 +612,7 @@ def make_anim(anim):
             curFrame = firstFrame
             for vec in channel['data']:
                 quat = mathutils.Quaternion((vec[3], vec[0], vec[1], vec[2]))
-                rotQuat = initialQuat * quat
+                rotQuat = initialQuat @ quat
 
                 fcus[0].keyframe_points.insert(curFrame, rotQuat.w)
                 fcus[1].keyframe_points.insert(curFrame, rotQuat.x)
@@ -588,23 +621,24 @@ def make_anim(anim):
 
                 curFrame += 1
 
-def load_scene(root, paths, ignore_lightmap):
-
+def load_scene(root: w3d_struct.node, collection: bpy.types.Collection, paths, ignore_lightmap):
     load_images(root, paths)
 
+    # Gather up all materials
     materials = w3d_util.mat_reduce(root, ignore_lightmap)
 
+    # Collect the renderables, pivots, and animations.
     robj = w3d_util.collect_render_objects(root)
     pivots = w3d_util.make_pivots(root, robj)
     anims = w3d_util.make_anims(root, pivots)
 
     make_mats(materials)
-    make_meshes(root)
-    make_shapes(root)
-    make_lights(root)
+    make_meshes(root, collection)
+    make_shapes(root, collection)
+    make_lights(root, collection)
 
     for p in pivots.values():
-        make_pivots(p)
+        make_pivots(p, collection)
 
     for a in anims.values():
         make_anim(a)
@@ -620,70 +654,84 @@ def load_scene(root, paths, ignore_lightmap):
                     break
             pivots[s['SubobjectName']]['blender_object'].parent = i['blender_object']
 
-# blender stuff
-def read_some_data(context, filepath, ignore_lightmap):
-    print("running read_some_data...")
-    
-    # source directories
-    current_path = os.path.dirname(filepath)
-    paths = [
-        current_path,
-        os.path.join(current_path, '../always/'),
-        os.path.join(current_path, '../textures/'),
-        os.path.join(current_path, 'textures/'),
-    ]
-    
-    # Load data
-    root = w3d_struct.load(filepath)
-    w3d_aggregate.aggregate(root, paths)
-    
-    load_scene(root, paths, ignore_lightmap)
-    
-    #bpy.context.scene.game_settings.material_mode = 'GLSL'
-
-    # Set the 3d view to textured
-    #for scrn in bpy.data.screens:
-    #    if scrn.name == 'Default':
-    #        bpy.context.window.screen = scrn
-    #        for area in scrn.areas:
-    #            if area.type == 'VIEW_3D':
-    #                for space in area.spaces:
-    #                    if space.type == 'VIEW_3D':
-    #                        space.viewport_shade = 'TEXTURED'
-    
-    print('done')
-    return {'FINISHED'}
 
 # ImportHelper is a helper class, defines filename and
 # invoke() function which calls the file selector.
 from bpy_extras.io_utils import ImportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty
-from bpy.types import Operator
+from bpy.props import StringProperty, BoolProperty, CollectionProperty
+from bpy.types import Operator, OperatorFileListElement
 
 
 class ImportWestwood3D(Operator, ImportHelper):
     '''This appears in the tooltip of the operator and in the generated docs'''
-    bl_idname = "import.westwood3d"
-    bl_label = "Import Westwood3D"
+    bl_idname      = "import.westwood3d"
+    bl_label       = "Import Westwood3D"
+    bl_description = "Import Westwood 3D geometry"
 
     # ImportHelper mixin class uses this
     filename_ext = ".w3d"
 
-    filter_glob = StringProperty(
-            default="*.w3d;*.wlt",
-            options={'HIDDEN'},
+    filter_glob: StringProperty(
+        default="*.w3d;*.wlt",
+        options={'HIDDEN'},
     )
+
+    files: CollectionProperty(
+        name="W3D files",
+        type=OperatorFileListElement,
+    )
+
+    directory: StringProperty(subtype='DIR_PATH')
 
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling.
-    ignore_lightmap = BoolProperty(
-            name="Don't import lightmaps",
-            description="Lightmap data increases material count",
-            default=True,
+    ignore_lightmap: BoolProperty(
+        name="Don't import lightmaps",
+        description="Lightmap data increases material count",
+        default=True,
     )
-    
+
+    attempt_proxies: BoolProperty(
+        name="Attempt to import proxies as w3d files",
+        description="This will attempt to import all proxies as w3d files. Proxy names commonly correspond to w3d files.",
+        default=False
+    )
+
+    def load_file(self, file):
+        # source directories
+        current_path = os.path.dirname(file)
+        paths = [
+            current_path,
+            os.path.join(current_path, '../always/'),
+            os.path.join(current_path, '../textures/'),
+            os.path.join(current_path, 'textures/'),
+        ]
+        
+        # Load data
+        try:
+            root = w3d_struct.load(file)
+        except Exception as e:
+            self.report({"ERROR"}, str(e))
+            return {"CANCELLED"}
+
+        try:
+            w3d_aggregate.aggregate(root, paths)
+        except Exception as e:
+            self.report({"ERROR"}, str(e))
+            return {"CANCELLED"}
+        
+        # grab the current layer
+        view_layer = bpy.context.view_layer
+
+        # Load the scene.
+        load_scene(root, view_layer.active_layer_collection.collection, paths, self.ignore_lightmap)
+        return {'FINISHED'}
+
     def execute(self, context):
-        return read_some_data(context, self.filepath, self.ignore_lightmap)
+        for f in self.files:
+            self.load_file(os.path.join(self.directory, f.name))
+
+        return {'FINISHED'}
         
 # Only needed if you want to add into a dynamic menu
 def menu_func_import(self, context):

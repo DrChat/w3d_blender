@@ -1,5 +1,8 @@
 import copy
 import struct
+from typing import cast, Any, Dict, List
+
+from . import w3d_struct
 
 def collect_render_objects(root):
     robj = {}
@@ -17,19 +20,20 @@ def collect_render_objects(root):
     
     return robj
     
-def make_pivots(root, robj):
+def make_pivots(root: w3d_struct.node, robj: Dict[str, w3d_struct.node]):
     pivotdict = {}
     
     for hroot in root.find('hlod'):
-        if hroot is None:
+        info = cast(w3d_struct.node_hlod_header, hroot.get('hlod_header'))
+        if info is None:
             continue
-
-        info = hroot.get('hlod_header')
 
         hierarchy = None
         hname = None
         for h in root.find('hierarchy'):
-            hname = h.get('hierarchy_header').Name
+            hh = cast(w3d_struct.node_hierarchy_header, h.get('hierarchy_header'))
+            
+            hname = hh.Name
             if info.HierarchyName == hname:
                 hierarchy = h
                 break
@@ -39,7 +43,7 @@ def make_pivots(root, robj):
 
         # Compile pivot data into a proper tree
         pivots = []
-        for pdata in hierarchy.get('pivots').pivots:
+        for pdata in cast(w3d_struct.node_pivots, hierarchy.get('pivots')).pivots:
             p = {
                 'index': pivots, 'name': pdata['Name'], 'agname': pdata['Name'],
                 'children': [], 'obj': [], 'prx': [], 'lodcount': info.LodCount,
@@ -76,14 +80,14 @@ def make_pivots(root, robj):
     
     return pivotdict
 
-def make_anims(root, pivots):
+def make_anims(root: w3d_struct.node, pivots) -> Dict[str, dict]:
     animdict = {}
 
     for animroot in root.find("animation"):
         if animroot == None:
             continue
 
-        head = animroot.get("animation_header")
+        head = cast(w3d_struct.node_animation_header, animroot.get("animation_header"))
         animdict[head.Name] = {
             'hname': head.HierarchyName, 'name': head.Name, 'numframes': head.NumFrames,
             'framerate': head.FrameRate, 'channels': [], 'bitchannels': [],
@@ -92,9 +96,10 @@ def make_anims(root, pivots):
         bitchannels = animroot.find("bit_channel")
 
         for bitchan in bitchannels:
+            # TODO
             pass
 
-        channels = animroot.find("animation_channel")
+        channels = cast(List[w3d_struct.node_animation_channel], animroot.find("animation_channel"))
 
         for chan in channels:
             chanout = {
@@ -128,7 +133,7 @@ def make_anims(root, pivots):
 
             offset = 0
             while offset < size:
-                data = struct.unpack_from(str(chan.VectorLen) + 'f', chan.Data, offset);
+                data = struct.unpack_from(str(chan.VectorLen) + 'f', chan.Data, offset)
 
                 veclist = []
                 for i in range(0, chan.VectorLen):
@@ -158,24 +163,26 @@ def make_anims(root, pivots):
 
     return animdict
     
-def mat_reduce(root, ignore_lightmap):
+def mat_reduce(root: w3d_struct.node, ignore_lightmap: bool) -> list:
+    """Runs through all the meshes and generate a list of materials.
+    """
     materials = []
     mathash = {}
     
     for mesh in root.find('mesh'):
-        meshinfo = mesh.get('mesh_header3')
-        verts = mesh.get('vertices').vertices
-        faces = mesh.get('triangles').triangles
-        mpass = mesh.findRec('material_pass')
-        texnames = mesh.findRec('texture_name')
-        vmnames = mesh.findRec('vertex_material_name')
-        vminfos = mesh.findRec('vertex_material_info')
-        shaders = mesh.getRec('shaders')
+        meshinfo = cast(w3d_struct.node_mesh_header3, mesh.get('mesh_header3'))
+        verts = cast(w3d_struct.node_vertices, mesh.get('vertices')).vertices
+        faces = cast(w3d_struct.node_triangles, mesh.get('triangles')).triangles
+        mpass = cast(List[w3d_struct.node_material_pass], mesh.findRec('material_pass'))
+        texnames = cast(List[w3d_struct.node_texture_name], mesh.findRec('texture_name'))
+        vmnames = cast(List[w3d_struct.node_vertex_material_name], mesh.findRec('vertex_material_name'))
+        vminfos = cast(List[w3d_struct.node_vertex_material_info], mesh.findRec('vertex_material_info'))
+        shaders = cast(w3d_struct.node_shaders, mesh.getRec('shaders'))
+        
         fmhash = {}
         mesh.Materials = []
         faceidx = 0
         for face in faces:
-            
             # Gather face information
             finfo = {}
             
@@ -184,10 +191,13 @@ def mat_reduce(root, ignore_lightmap):
             
             finfo['mpass'] = []
             for p in mpass:
+                vmids = cast(w3d_struct.node_vertex_material_ids, p.get('vertex_material_ids'))
+                shids = cast(w3d_struct.node_shader_ids, p.get('shader_ids'))
+
                 pinfo = { 'stages': [] }
                 
                 # get vertex material
-                ids = p.get('vertex_material_ids').ids
+                ids = vmids.ids
                 pinfo['vmid'] = ids[face['Vindex'][0]] if len(ids) > 1 else ids[0]
                 
                 # remove lightmaps if not wanted
@@ -196,7 +206,7 @@ def mat_reduce(root, ignore_lightmap):
                     continue
                 
                 # get shader
-                ids = p.get('shader_ids').ids
+                ids = shids.ids
                 pinfo['sid'] = ids[faceidx] if len(ids) > 1 else ids[0]
                 
                 # get textures

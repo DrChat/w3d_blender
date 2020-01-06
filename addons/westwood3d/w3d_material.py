@@ -1,16 +1,16 @@
 import bpy
 
 class Westwood3DMaterialPass(bpy.types.PropertyGroup):
-    name = bpy.props.StringProperty(name="Name")
-    ambient = bpy.props.FloatVectorProperty(name="Ambient Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(1.0, 1.0, 1.0))
-    diffuse = bpy.props.FloatVectorProperty(name="Diffuse Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(1.0, 1.0, 1.0))
-    specular = bpy.props.FloatVectorProperty(name="Specular Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(0.0, 0.0, 0.0))
-    emissive = bpy.props.FloatVectorProperty(name="Emissive Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(0.0, 0.0, 0.0))
-    shininess = bpy.props.FloatProperty(name="Shininess", default=1.0, min=0.0, max=100.0, soft_min=0.0, soft_max=100.0)
-    opacity = bpy.props.FloatProperty(name="Opacity", default=1.0, min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
-    translucency = bpy.props.FloatProperty(name="Translucency", min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
+    name: bpy.props.StringProperty(name="Name")
+    ambient: bpy.props.FloatVectorProperty(name="Ambient Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(1.0, 1.0, 1.0))
+    diffuse: bpy.props.FloatVectorProperty(name="Diffuse Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(1.0, 1.0, 1.0))
+    specular: bpy.props.FloatVectorProperty(name="Specular Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(0.0, 0.0, 0.0))
+    emissive: bpy.props.FloatVectorProperty(name="Emissive Color", subtype='COLOR', min=0.0, max=1.0, soft_min=0.0, soft_max=1.0, default=(0.0, 0.0, 0.0))
+    shininess: bpy.props.FloatProperty(name="Shininess", default=1.0, min=0.0, max=100.0, soft_min=0.0, soft_max=100.0)
+    opacity: bpy.props.FloatProperty(name="Opacity", default=1.0, min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
+    translucency: bpy.props.FloatProperty(name="Translucency", min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
     
-    mapping0 = bpy.props.EnumProperty(name="",
+    mapping0: bpy.props.EnumProperty(name="",
     items=[
         ("0", "UV", ""),
         ("1", "Environment", ""),
@@ -32,7 +32,7 @@ class Westwood3DMaterialPass(bpy.types.PropertyGroup):
         ("17", "Edge", ""),
         ("18", "Bump Environment", "")
     ], default='0')
-    mapping1 = bpy.props.EnumProperty(name="",
+    mapping1: bpy.props.EnumProperty(name="",
     items=[
         ("0", "UV", ""),
         ("1", "Environment", ""),
@@ -54,16 +54,30 @@ class Westwood3DMaterialPass(bpy.types.PropertyGroup):
         ("17", "Edge", ""),
         ("18", "Bump Environment", "")
     ], default='0')
-    stage0 = bpy.props.StringProperty(name="")
-    stage1 = bpy.props.StringProperty(name="")
+    stage0: bpy.props.StringProperty(name="")
+    stage1: bpy.props.StringProperty(name="")
     
-    srcblend = bpy.props.StringProperty(name="Src Blend")
-    destblend = bpy.props.StringProperty(name="Dest Blend")
-    depthmask = bpy.props.BoolProperty(name="Write ZBuffer", default=True)
-    alphatest = bpy.props.BoolProperty(name="Alpha Test", default=False)
+    srcblend: bpy.props.EnumProperty(name="Src Blend", items=[
+        ("0", "W3DSHADER_SRCBLENDFUNC_ZERO", ""),
+        ("1", "W3DSHADER_SRCBLENDFUNC_ONE", ""),
+        ("2", "W3DSHADER_SRCBLENDFUNC_SRC_ALPHA", ""),
+        ("3", "W3DSHADER_SRCBLENDFUNC_ONE_MINUS_SRC_ALPHA", ""),
+        ("4", "W3DSHADER_SRCBLENDFUNC_MAX", ""),
+    ])
+    destblend: bpy.props.EnumProperty(name="Dest Blend", items=[
+        ("0", "W3DSHADER_DESTBLENDFUNC_ZERO", ""),
+        ("1", "W3DSHADER_DESTBLENDFUNC_ONE", ""),
+        ("2", "W3DSHADER_DESTBLENDFUNC_SRC_COLOR", ""),
+        ("3", "W3DSHADER_DESTBLENDFUNC_ONE_MINUS_SRC_COLOR", ""),
+        ("4", "W3DSHADER_DESTBLENDFUNC_SRC_ALPHA", ""),
+        ("5", "W3DSHADER_DESTBLENDFUNC_ONE_MINUS_SRC_ALPHA", ""),
+        ("6", "W3DSHADER_DESTBLENDFUNC_SRC_COLOR_PREFOG", ""),
+    ])
+    depthmask: bpy.props.BoolProperty(name="Write ZBuffer", default=True)
+    alphatest: bpy.props.BoolProperty(name="Alpha Test", default=False)
     
     
-    # blend = bpy.props.EnumProperty(name="Blend", description="Blend presets",
+    # blend: bpy.props.EnumProperty(name="Blend", description="Blend presets",
     # items=[
         # ("1", "Opaque", ""),
         # ("2", "Add", ""),
@@ -92,11 +106,11 @@ class Westwood3DMaterial(bpy.types.PropertyGroup):
         elif self.mpass_index != 1:
             self.mpass_index = 1
     
-    mpass = bpy.props.CollectionProperty(type=Westwood3DMaterialPass)
-    mpass_index = bpy.props.IntProperty(name="Pass", min=1, max=4, update=change_mpass_index)
-    mpass_count = bpy.props.IntProperty(name="Pass Count", min=0, max=4, update=change_mpass_count)
-    sort_level = bpy.props.IntProperty(name="Sort Level", min=0)
-    surface_type = bpy.props.EnumProperty(name="Surface", description="Surface types cause a range of effects, e.g. tiberium hurts you and is crunchy.",
+    mpass: bpy.props.CollectionProperty(type=Westwood3DMaterialPass)
+    mpass_index: bpy.props.IntProperty(name="Pass", min=1, max=4, update=change_mpass_index)
+    mpass_count: bpy.props.IntProperty(name="Pass Count", min=0, max=4, update=change_mpass_count)
+    sort_level: bpy.props.IntProperty(name="Sort Level", min=0)
+    surface_type: bpy.props.EnumProperty(name="Surface", description="Surface types cause a range of effects, e.g. tiberium hurts you and is crunchy.",
     items=[
         ("0", "Light Metal", ""),
         ("1", "Heavy Metal", ""),
@@ -137,7 +151,7 @@ class Westwood3DMaterialPassEdit(bpy.types.Operator):
     bl_idname = "material.mpassadd"
     bl_label = "MaterialPassEdit"
     
-    add = bpy.props.BoolProperty(default = True)
+    add: bpy.props.BoolProperty(default = True)
 
     @classmethod
     def poll(cls, context):

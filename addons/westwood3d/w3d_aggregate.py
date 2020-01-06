@@ -1,10 +1,25 @@
 import os
 from . import w3d_struct
 
-def aggregate(root, paths):
+from typing import BinaryIO, List
+
+class MissingFileError(Exception):
+    """Exception raised when an aggregate was not found.
+
+    Attributes:
+        message -- explanation for the error
+    """
+    def __init__(self, file, message):
+        self.file = file
+        self.message = message
+    
+    def __str__(self):
+        return self.message
+
+def aggregate(root, paths: List[str]):
     ag_rec(root, root, paths)
 
-def ag_rec(node, root, paths, loaded={}):
+def ag_rec(node: w3d_struct.node, root: w3d_struct.node, paths, loaded={}):
     expfiles = {}
     impfiles = {}
     
@@ -26,7 +41,6 @@ def ag_rec(node, root, paths, loaded={}):
     # hlod
     hlod = node.get('hlod')
     if hlod is not None:
-        
         # hierarchy
         hinfo = hlod.get('hlod_header')
         loaded[hinfo.Name] = True
@@ -64,7 +78,7 @@ def ag_rec(node, root, paths, loaded={}):
             root.children += n.children
             ag_rec(n, root, paths, loaded)
     
-def ag_load(file, paths):
+def ag_load(file: str, paths: List[str]):
     root = None
     
     for path in paths:
@@ -77,5 +91,6 @@ def ag_load(file, paths):
     
     if root is None:
         print('MISSING: ' + file.lower() + '.w3d')
+        raise MissingFileError(file.lower() + '.w3d', "File not found or corrupted: " + file.lower() + ".w3d")
     
     return root

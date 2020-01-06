@@ -25,17 +25,42 @@ else:
 
 import bpy
 
+classes = (
+    w3d_import.ImportWestwood3D,
+    w3d_export.ExportWestwood3D,
+    w3d_material.Westwood3DMaterialPassEdit,
+    w3d_material.Westwood3DMaterialPass,
+    w3d_material.Westwood3DMaterial,
+)
+
 def register():
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)
+
     bpy.types.Material.westwood3d = bpy.props.PointerProperty(type=w3d_material.Westwood3DMaterial)
-    bpy.types.INFO_MT_file_import.append(w3d_import.menu_func_import)
-    bpy.types.INFO_MT_file_export.append(w3d_export.menu_func_export)
+    if hasattr(bpy.types, 'TOPBAR_MT_file_import'):
+        # Blender 2.8+
+        bpy.types.TOPBAR_MT_file_import.append(w3d_import.menu_func_import)
+        bpy.types.TOPBAR_MT_file_export.append(w3d_export.menu_func_export)
+    else:
+        bpy.types.INFO_MT_file_import.append(w3d_import.menu_func_import)
+        bpy.types.INFO_MT_file_export.append(w3d_export.menu_func_export)
 
 def unregister():
-    bpy.types.INFO_MT_file_import.remove(w3d_import.menu_func_import)
-    bpy.types.INFO_MT_file_export.remove(w3d_export.menu_func_export)
+    from bpy.utils import unregister_class
+    for cls in reversed(classes):
+        unregister_class(cls)
+
+    if hasattr(bpy.types, 'TOPBAR_MT_file_import'):
+        # Blender 2.8+
+        bpy.types.TOPBAR_MT_file_import.remove(w3d_import.menu_func_import)
+        bpy.types.TOPBAR_MT_file_export.remove(w3d_export.menu_func_export)
+    else:
+        bpy.types.INFO_MT_file_import.remove(w3d_import.menu_func_import)
+        bpy.types.INFO_MT_file_export.remove(w3d_export.menu_func_export)
+
     del bpy.types.Material.westwood3d
-    bpy.utils.unregister_module(__name__)
-    
+
 if __name__ == "__main__":
     register()

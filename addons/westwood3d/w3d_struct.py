@@ -1,13 +1,22 @@
-import struct
-from math import ceil
+from __future__ import annotations
 
-def b2s(str):
-    return str.split(b'\0')[0].decode('utf-8')
-def s2b(str, s=None):
-    str = str.encode('utf-8')
-    if s is not None and len(str) >= s:
-        str = str[:s - 1]
-    return str + b'\0'
+import mmap
+import struct
+import typing
+
+from math import ceil
+from typing import cast, Any, BinaryIO, Dict, List, Optional, Tuple
+
+def b2s(by: bytes) -> str:
+    return by.split(b'\0')[0].decode('utf-8')
+
+def s2b(s: str, len=None) -> bytes:
+    by = s.encode('utf-8')
+    if len is not None and len(by) >= len:
+        by = by[:len - 1]
+    
+    return by + b'\0'
+
 def ver(major, minor):
     return (((major) << 16) | (minor))
 
@@ -164,22 +173,28 @@ w3d_keys = {
 
 w3d_save_keys = {v:k for k, v in w3d_keys.items()}
 
-class node:
+class node():
+    children: List[node]
+    binary: Optional[bytes]
+    size: int
+
     def __init__(self):
         self.children = []
         self.binary = None
         self.size = 0
 
-    def read(self, file, size):
+    def read(self, file: BinaryIO, size):
         self.children = parse_nodes(file, size)
 
-    def write(self, file):
+    def write(self, file: BinaryIO):
         file.write(struct.pack('LL',
             w3d_save_keys[self.type().upper()],
             self.size | 0x80000000
         ))
+
         if self.binary is not None:
             file.write(self.binary)
+        
         for c in self.children:
             c.write(file)
 
@@ -188,7 +203,7 @@ class node:
             c.pack()
             self.size += 8 + c.size
 
-    def type(self):
+    def type(self) -> str:
         return self.__class__.__name__[5:]
 
     def log(self, max, indent=0):
@@ -204,41 +219,46 @@ class node:
             for n in self.children:
                 n.log(max, indent)
 
-    def add(self, type):
+    def add(self, type: str) -> node:
         c = globals()['node_' + type]()
         self.children.append(c)
         return c
 
-    def get(self, name):
+    def get(self, name: str) -> Optional[node]:
         for i in self.children:
             if i.type() == name:
                 return i
         return None
 
-    def getRec(self, name):
+    def getRec(self, name: str) -> Optional[node]:
         for i in self.children:
             if i.type() == name:
                 return i
             res = i.getRec(name)
             if res != None:
                 return res
+
         return None
 
-    def find(self, name):
-        all = []
+    def find(self, name: str) -> List[node]:
+        l = []
         for i in self.children:
             if i.type() == name:
-                all.append(i)
-        return all
+                l.append(i)
+        
+        return l
 
-    def findRec(self, name, all=None):
-        if all == None:
-            all = []
+    def findRec(self, name: str) -> List[node]:
+        """Recursively searches through all children for records of type name.
+        """
+        l = []
+
         for i in self.children:
             if i.type() == name:
-                all.append(i)
-            i.findRec(name, all)
-        return all
+                l.append(i)
+            l.extend(i.findRec(name))
+        
+        return l
 
 class node_mesh(node):
     def read(self, file, size):
@@ -305,7 +325,20 @@ class node_mesh_header3(node):
         )
         self.size += struct.calcsize('LL16s16sLLLLlLLLL3f3f3ff')
 
+class node_mesh_user_text(node):
+    def __init__(self):
+        super(node_mesh_user_text, self).__init__()
+        self.text = ""
+    
+    def read(self, file: BinaryIO, size: int):
+        self.text = b2s(file.read(size))
+
+    def pack(self):
+        self.binary = s2b(self.text)
+
 class node_vertices(node):
+    vertices: List[Tuple[float, float, float]]
+
     def __init__(self):
         super(node_vertices, self).__init__()
         self.vertices = []
@@ -374,6 +407,8 @@ class node_vertex_influences(node):
             self.size += struct.calcsize('H6B')
 
 class node_triangles(node):
+    triangles: List[Dict[str, Any]]
+
     def __init__(self):
         super(node_triangles, self).__init__()
         self.triangles = []
@@ -498,6 +533,8 @@ class node_material_pass(node):
         self.children = parse_nodes(file, size)
 
 class node_vertex_material_ids(node):
+    ids: List[int]
+
     def __init__(self):
         super(node_vertex_material_ids, self).__init__()
         self.ids = []
@@ -515,6 +552,8 @@ class node_vertex_material_ids(node):
             self.size += struct.calcsize('L')
 
 class node_shader_ids(node):
+    ids: List[int]
+
     def __init__(self):
         super(node_shader_ids, self).__init__()
         self.ids = []
@@ -904,6 +943,11 @@ class node_animation(node):
         self.children = parse_nodes(file, size)
 
 class node_animation_header(node):
+    Name: str
+    HierarchyName: str
+    NumFrames: int
+    FrameRate: int
+
     def __init__(self):
         super(node_animation_header, self).__init__()
 
@@ -1042,7 +1086,7 @@ class node_aggregate_info(node):
             size -= struct.calcsize('32s32s')
     def pack(self):
         self.binary = struct.pack('32sL',
-            b2s(self.BaseModelName),
+            s2b(self.BaseModelName),
             self.SubobjectCount
         )
         self.size = struct.calcsize('32sL')
@@ -1168,7 +1212,7 @@ class node_sphere(node):
         self.binary = struct.pack('LL32s4B3f3f',
             self.Version,
             self.Attributes,
-            b2s(self.Name),
+            s2b(self.Name),
             self.Color[0], self.Color[1], self.Color[2], 0,
             self.Center[0], self.Center[1], self.Center[2],
             self.Extent[0], self.Extent[1], self.Extent[2],
@@ -1188,7 +1232,7 @@ class node_ring(node):
         self.binary = struct.pack('LL32s4B3f3f',
             self.Version,
             self.Attributes,
-            b2s(self.Name),
+            s2b(self.Name),
             self.Color[0], self.Color[1], self.Color[2], 0,
             self.Center[0], self.Center[1], self.Center[2],
             self.Extent[0], self.Extent[1], self.Extent[2],
@@ -1200,8 +1244,19 @@ class node_(node):
         self.children = parse_nodes(file, size)
         
 # loading algorithm
+class ParseError(Exception):
+    """Exception raised when an error is encountered while parsing a w3d archive.
 
-def read_struct(file, fmt):
+    Attributes:
+        message -- explanation for the error
+    """
+    def __init__(self, message):
+        self.message = message
+    
+    def __str__(self):
+        return self.message
+
+def read_struct(file: BinaryIO, fmt) -> Optional[Tuple]:
     binary = file.read(struct.calcsize(fmt))
     
     if binary == b'':
@@ -1210,7 +1265,7 @@ def read_struct(file, fmt):
     data = struct.unpack(fmt, binary)
     return data
     
-def read_header(file):
+def read_header(file: BinaryIO) -> Optional[Tuple[str, int]]:
     data = read_struct(file, 'LL')
     
     if data == None:
@@ -1225,18 +1280,19 @@ def read_header(file):
     
     return (type, size)
     
-def parse_nodes(file, size=0x7FFFFFFF):
+def parse_nodes(file: BinaryIO, size=0x7FFFFFFF) -> List[node]:
     nodes = []
     
     while size > 0:
+        offset = file.tell()
+
         ci = read_header(file)
         if ci == None:
-            break;
+            break
 
         if ci[0] == 'ERROR':
-            print('Trying to parse unknown node (ERROR) - cannot continue')
-            break
-        
+            raise ParseError("Unknown header node type. Is this a valid W3D file?")
+
         # instantiate and load node
         try:
             # print('%s: %db' % (ci[0], ci[1]))
@@ -1246,21 +1302,23 @@ def parse_nodes(file, size=0x7FFFFFFF):
         except KeyError:
             file.read(ci[1]) # Skip the node's data
             print('ignored: node_' + ci[0].lower())
+
+        # Make sure we've read the right number of bytes.
+        assert file.tell() - offset == (8 + ci[1])
         
         # limit size for nested chunks
         size -= 8 + ci[1] # header size + chunk size
         
     return nodes
     
-def load(filepath):
-    file = open(filepath, 'rb')
-    print('load: ' + filepath)
-    try:
+def load(filepath: str) -> node:
+    with open(filepath, 'rb') as file:
+        print('load: ' + filepath)
+
         root = node()
-        root.children = parse_nodes(file)
-    finally:
-        file.close()
-    return root
+        root.children = parse_nodes(cast(BinaryIO, file))
+        
+        return root
     
 def save(root, filepath):
     file = open(filepath, 'wb')
